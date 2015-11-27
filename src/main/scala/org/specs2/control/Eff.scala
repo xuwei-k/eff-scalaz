@@ -1,5 +1,4 @@
-package org.specs2
-package data
+package org.specs2.control
 
 import scalaz._, Scalaz._
 import Eff._
@@ -25,11 +24,11 @@ import Member._
  *
  */
 
-sealed trait Eff[R <: Effects, A]
+sealed trait Eff[R, A]
 
 object Eff {
 
-  implicit def EffMonad[R <: Effects]: Monad[Eff[R, ?]] = new Monad[Eff[R, ?]] {
+  implicit def EffMonad[R]: Monad[Eff[R, ?]] = new Monad[Eff[R, ?]] {
     def point[A](a: => A): Eff[R, A] =
       Pure(() => a)
 
@@ -60,9 +59,9 @@ object Eff {
 }
 
 
-case class Pure[R <: Effects, A](run: () => A) extends Eff[R, A]
+case class Pure[R, A](run: () => A) extends Eff[R, A]
 
-trait Impure[R <: Effects, A] extends Eff[R, A] {
+trait Impure[R, A] extends Eff[R, A] {
   type X
   val union: Union[R, X]
   val continuation: X => Eff[R, A]
@@ -100,7 +99,7 @@ object Effects {
  *
  * Union (r :: [∗ → ∗ ]) x
  */
-trait Union[R <: Effects, A]
+trait Union[R, A]
 case class UnionNow[T[_], R <: Effects, A](ta: Option[T[A]]) extends Union[T <:: R, A]
 case class UnionNext[T[_], R <: Effects, A]() extends Union[T <:: R, A]
 
@@ -114,7 +113,7 @@ case class UnionNext[T[_], R <: Effects, A]() extends Union[T <:: R, A]
  * inj :: t v → Union r v
  * prj :: Union r v → Maybe (t v)
  */
-trait Member[T[_], R <: Effects] {
+trait Member[T[_], R] {
   def inject[V](tv: T[V]): Union[R, V]
   def project[V](u: Union[R, V]): Option[T[V]]
 }
@@ -143,31 +142,3 @@ object Member {
       case None     => u.asInstanceOf[Union[R, V]].left
     }
 }
-
-/**
- * data Reader i x where
-Get :: Reader i i
-data Writer o x where
-Put :: o → Writer o ()
-Informally, we split the monolithic FReaderWriter request signature
-into its components (to be combined in the open union). The
-simplest Reader computation, ask of §2.1, can now be written as
-ask :: Member (Reader i) r ⇒ Eff r i
-ask = Impure (inj Get) return
- *
-*/
-
-trait Reader[I, X]
-case class Get[I]() extends Reader[I, I]
-
-object Reader {
-  def ask[I, R <: Effects](implicit member: Member[Reader[I, ?], R]): Eff[R, I] =
-    new Impure[R, I] {
-      type X = I
-      val union = member.inject(Get[I]())
-      val continuation = (x: X) => EffMonad[R].point(x)
-    }
-}
-
-trait Writer[O, X]
-case class Put[O](o: O) extends Writer[O, Unit]
