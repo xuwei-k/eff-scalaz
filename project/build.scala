@@ -31,7 +31,8 @@ object build extends Build {
     javacOptions ++= Seq("-Xmx3G", "-Xms512m", "-Xss4m"),
     maxErrors := 20,
     scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-language:_"),
-    scalacOptions in Test ++= Seq("-Yrangepos")
+    scalacOptions in Test ++= Seq("-Yrangepos"),
+    addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.7.1")
   )
 
   lazy val testingSettings: Seq[Settings] = Seq(
