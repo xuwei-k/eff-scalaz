@@ -20,11 +20,23 @@ import Member._
  * - Write (for some logs)
  * - Error (for user errors)
  *
- *
- *
  */
-
 sealed trait Eff[R, A]
+
+case class Arrs[R, A, B](functions: Vector[Any => Eff[R, Any]]) {
+  def append[C](f: B => Eff[R, C]): Arrs[R, A, C] =
+    Arrs(functions :+ f.asInstanceOf[Any => Eff[R, Any]])
+
+  def apply(a: A): Eff[R, B] =
+    functions.tail.foldLeft(functions.head(a.asInstanceOf[Any])) { (res, cur) =>
+      res >>= cur
+    }.asInstanceOf[Eff[R, B]]
+}
+
+object Arrs {
+  def singleton[R, A, B](f: A => Eff[R, B]): Arrs[R, A, B] =
+    Arrs(Vector(f.asInstanceOf[Any => Eff[R, Any]]))
+}
 
 object Eff {
 
@@ -34,14 +46,9 @@ object Eff {
 
     def bind[A, B](fa: Eff[R, A])(f: A => Eff[R, B]): Eff[R, B] =
       fa match {
-      case Pure(run) => f(run())
-      case impure: Impure[R, A] =>
-        new Impure[R, B] {
-          type X = impure.X
-          val union: Union[R, X] = impure.union
-          val continuation = (x: X) =>
-            bind(impure.continuation(x))(f)
-        }
+        case Pure(run) => f(run())
+        case Impure(union, continuation) =>
+          Impure(union, continuation.append(f).asInstanceOf[Arrs[R, Any, B]])
       }
   }
 
@@ -50,22 +57,27 @@ object Eff {
    * send t = Impure (inj t) (tsingleton Pure)
    */
    def send[T[_], R <: Effects, V](tv: T[V])(implicit member: Member[T, R]): Eff[R, V] =
-     new Impure[R, V] {
-       type X = V
-       val union: Union[R, X] = member.inject(tv)
-       val continuation = (x: X) => EffMonad[R].point(x)
-     }
+     impure(member.inject(tv), Arrs.singleton((v: V) => EffMonad[R].point(v)))
+
+
+   def pure[R, A](run: A): Eff[R, A] =
+     Pure(() => run)
+
+   def impure[R, A, X](union: Union[R, X], continuation: Arrs[R, X, A]): Eff[R, A] =
+     Impure(union.asInstanceOf[Union[R, Any]], continuation.asInstanceOf[Arrs[R, Any, A]])
+
+  def run[A](eff: Eff[EffectsNil, A]): A =
+    eff match {
+      case Pure(run) => run()
+      case _ => sys.error("impossible")
+    }
 
 }
 
 
 case class Pure[R, A](run: () => A) extends Eff[R, A]
 
-trait Impure[R, A] extends Eff[R, A] {
-  type X
-  val union: Union[R, X]
-  val continuation: X => Eff[R, A]
-}
+case class Impure[R, A](union: Union[R, Any], continuation: Arrs[R, Any, A]) extends Eff[R, A]
 
 /**
  * EFFECTS
