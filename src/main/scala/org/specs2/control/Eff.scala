@@ -40,6 +40,8 @@ object Arrs {
 
 object Eff {
 
+  type Arr[R, A, B] = A => Eff[R, B]
+
   implicit def EffMonad[R]: Monad[Eff[R, ?]] = new Monad[Eff[R, ?]] {
     def point[A](a: => A): Eff[R, A] =
       Pure(() => a)
@@ -48,7 +50,7 @@ object Eff {
       fa match {
         case Pure(run) => f(run())
         case Impure(union, continuation) =>
-          Impure(union, continuation.append(f).asInstanceOf[Arrs[R, Any, B]])
+          Impure(union, continuation.append(f))
       }
   }
 
@@ -58,7 +60,6 @@ object Eff {
    */
    def send[T[_], R <: Effects, V](tv: T[V])(implicit member: Member[T, R]): Eff[R, V] =
      impure(member.inject(tv), Arrs.singleton((v: V) => EffMonad[R].point(v)))
-
 
    def pure[R, A](run: A): Eff[R, A] =
      Pure(() => run)
@@ -70,6 +71,31 @@ object Eff {
     eff match {
       case Pure(run) => run()
       case _ => sys.error("impossible")
+    }
+
+  /**
+   * handle relay :: (a → Eff r w) →
+(∀ v. t v → Arr r v w → Eff r w) →
+Eff (t ’: r ) a → Eff r w
+handle relay ret (Pure x) = ret x
+handle relay ret h (Impure u q) = case decomp u of
+Right x → h x k
+Left u → Impure u (tsingleton k)
+where k = qComp q (handle relay ret h)
+   */
+
+  trait EffCont[M[_], R, A] {
+    def apply[X]: M[X] => (X => Eff[R, A]) => Eff[R, A]
+  }
+
+  def relay[R <: Effects, M[_], A, B](ret: A => Eff[R, B], cont: EffCont[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] =
+    effects match {
+      case Pure(a) => ret(a())
+      case Impure(union, continuation) =>
+        decompose[M, R, Any](union.asInstanceOf[Union[M <:: R, Any]]) match {
+          case \/-(mx) => cont.apply(mx)(continuation.asInstanceOf[Arr[R, Any, B]])
+          case -\/(u)  => impure(u.asInstanceOf[Union[R, Any]], Arrs.singleton((x: Any) => relay(ret, cont)(continuation.apply(x))))
+        }
     }
 
 }
