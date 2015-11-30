@@ -1,9 +1,10 @@
 package org.specs2.control
 
-import scalaz._, Scalaz._
+import scalaz.{Coproduct=>_,Inject => _, :+: => _,_}, Scalaz._
 import Eff._
 import Effects._
-import Member._
+import Members._
+import shapeless._, ops.coproduct._
 
 /**
  *
@@ -58,14 +59,14 @@ object Eff {
    * send :: Member t r ⇒ t v → Eff r v
    * send t = Impure (inj t) (tsingleton Pure)
    */
-   def send[T[_], R <: Effects, V](tv: T[V])(implicit member: Member[T, R]): Eff[R, V] =
+   def send[T[_], R <: Coproduct, V](tv: T[V])(implicit member: Members[T, R], inject: Inject[R, T[V]]): Eff[R, V] =
      impure(member.inject(tv), Arrs.singleton((v: V) => EffMonad[R].point(v)))
 
    def pure[R, A](run: A): Eff[R, A] =
      Pure(() => run)
 
-   def impure[R, A, X](union: Union[R, X], continuation: Arrs[R, X, A]): Eff[R, A] =
-     Impure(union.asInstanceOf[Union[R, Any]], continuation.asInstanceOf[Arrs[R, Any, A]])
+   def impure[R, A, X](union: Unions[R, X], continuation: Arrs[R, X, A]): Eff[R, A] =
+     Impure(union.asInstanceOf[Unions[R, Any]], continuation.asInstanceOf[Arrs[R, Any, A]])
 
   def run[A](eff: Eff[EffectsNil, A]): A =
     eff match {
@@ -88,13 +89,13 @@ where k = qComp q (handle relay ret h)
     def apply[X]: M[X] => (X => Eff[R, A]) => Eff[R, A]
   }
 
-  def relay[R <: Effects, M[_], A, B](ret: A => Eff[R, B], cont: EffCont[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] =
+  def relay[R <: Coproduct, M[_], A, B](ret: A => Eff[R, B], cont: EffCont[M, R, B])(effects: Eff[M[A] :+: R, A]): Eff[R, B] =
     effects match {
       case Pure(a) => ret(a())
       case Impure(union, continuation) =>
-        decompose[M, R, Any](union.asInstanceOf[Union[M <:: R, Any]]) match {
+        decompose[M, R, Any](union.asInstanceOf[Unions[M[Any] :+: R, Any]]) match {
           case \/-(mx) => cont.apply(mx)(continuation.asInstanceOf[Arr[R, Any, B]])
-          case -\/(u)  => impure(u.asInstanceOf[Union[R, Any]], Arrs.singleton((x: Any) => relay(ret, cont)(continuation.apply(x))))
+          case -\/(u)  => impure(u.asInstanceOf[Unions[R, Any]], Arrs.singleton((x: Any) => relay(ret, cont)(continuation.apply(x))))
         }
     }
 
@@ -103,7 +104,7 @@ where k = qComp q (handle relay ret h)
 
 case class Pure[R, A](run: () => A) extends Eff[R, A]
 
-case class Impure[R, A](union: Union[R, Any], continuation: Arrs[R, Any, A]) extends Eff[R, A]
+case class Impure[R, A](union: Unions[R, Any], continuation: Arrs[R, Any, A]) extends Eff[R, A]
 
 /**
  * EFFECTS

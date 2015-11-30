@@ -1,10 +1,10 @@
 package org.specs2.control
 
-import scalaz._, Scalaz._
+import scalaz.{Coproduct=>_,Inject=>_,:+: => _,_}, Scalaz._
 import Eff._
-import Member._
-import Reader._
 import Effects._
+import Members._
+import shapeless._, shapeless.ops.coproduct._
 
 sealed trait Reader[I, X]
 
@@ -12,18 +12,18 @@ case class Get[I]() extends Reader[I, I]
 
 object Reader {
 
-  def ask[R, I](implicit member: Member[Reader[I, ?], R]): Eff[R, I] =
+  def ask[R <: Coproduct, I](implicit member: Members[Reader[I, ?], R], inject: Inject[R, Reader[I, I]]): Eff[R, I] =
     impure(member.inject(Get[I]()), Arrs.singleton((i: I) => EffMonad[R].point(i)))
 
-  def runReaderOnly[R, A](initial: A)(r: Eff[R, A])(implicit member: Member[Reader[A, ?], R]): A =
+  def runReaderOnly[R <: Coproduct, A](initial: A)(r: Eff[R, A])(implicit member: Members[Reader[A, ?], R], select: Selector[R, Reader[A, A]]): A =
     r match {
       case Pure(run) => run()
 
       case Impure(union, continuation) =>
-        member.project(union).map(_ => runReaderOnly(initial)(continuation.apply(initial))).getOrElse(initial)
+        member.project(union.asInstanceOf[Unions[R, A]]).map(_ => runReaderOnly(initial)(continuation.apply(initial))).getOrElse(initial)
     }
 
-  def runReader[R <: Effects, A, B](r: Eff[Reader[A, ?] <:: R, B])(initial: A): Eff[R, B] = {
+  def runReader[R <: Coproduct, A, B](r: Eff[Reader[A, B] :+: R, B])(initial: A): Eff[R, B] = {
     val readOne = (b: B) => EffMonad[R].point(b)
 
     val readRest = new EffCont[Reader[A, ?], R, B] {

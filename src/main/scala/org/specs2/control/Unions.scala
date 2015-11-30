@@ -9,36 +9,45 @@ trait Unions[R, A]
 
 case class CoproductUnions[R <: Coproduct, T[_], A](effects: R) extends Unions[R, A]
 
-trait Members[M[_], R, A] {
-  def inject(ma: M[A]): Unions[R, A]
+trait Members[M[_], R <: Coproduct] {
+  def inject[A](ma: M[A])(implicit inject: Inject[R, M[A]]): Unions[R, A]
 
-  def project(u: Unions[R, A]): Option[M[A]]
+  def project[A](u: Unions[R, A])(implicit select: Selector[R, M[A]]): Option[M[A]]
 }
 
 object Members {
 
-  implicit def CoproductUnionMembers[M[_], R <: Coproduct, A](implicit injector: Inject[R, M[A]],
-    selector: Selector[R, M[A]]): Members[M, R, A] = new Members[M, R, A] {
+  implicit def CoproductUnionMembers[M[_], R <: Coproduct]: Members[M, R] = new Members[M, R] {
 
-    def inject(ma: M[A]): Unions[R, A] =
-      CoproductUnions[R, M, A](Coproduct(ma))
+    def inject[A](ma: M[A])(implicit inject: Inject[R, M[A]]): Unions[R, A] =
+      CoproductUnions[R, M, A](Coproduct[R](ma))
 
-    def project(u: Unions[R, A]): Option[M[A]] =
+    def project[A](u: Unions[R, A])(implicit select: Selector[R, M[A]]): Option[M[A]] =
       u match {
-      case CoproductUnions(effects) =>
-        effects.select
+        case CoproductUnions(effects) =>
+          effects.select
       }
   }
 
   /**
    * Extract the first effect from a list of effects if present
    */
-  def decompose[M[_], R <: Coproduct, V](u: Unions[M[V] :+: R, V])(implicit member: Members[M, M[V] :+: R, V]): Unions[R, V] \/ M[V] =
+  def decompose[M[_], R <: Coproduct, V](u: Unions[M[V] :+: R, V])(implicit member: Members[M, M[V] :+: R]): Unions[R, V] \/ M[V] =
     member.project(u) match {
       case Some(tv) => \/-(tv)
       case None     => -\/(u.asInstanceOf[Unions[R, V]])
     }
 
+
+//  implicit def EffectMembers[T[_], R <: Coproduct]: Member[T, MA :+: R] = new Member[T, MA :+: R] {
+//    def inject[V](tv: T[V]): Unions[T[A] :+: R, V] =
+//      CoproductUnions(Inl(tv))
+//
+//    def project[V](u: Union[T[A] :+: R, V]): Option[T[V]] =
+//      u match {
+//        case CoproductUnions(effects) => effects.select
+//      }
+//  }
 
 }
 

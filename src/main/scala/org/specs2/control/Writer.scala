@@ -1,9 +1,10 @@
 package org.specs2.control
 
-import scalaz._, Scalaz._
+import scalaz.{Coproduct=>_,Inject=>_,:+: => _,_}, Scalaz._
 import Eff._
 import Effects._
-import Member._
+import Members._
+import shapeless._, shapeless.ops.coproduct._
 
 sealed trait Writer[O, X]
 
@@ -14,7 +15,7 @@ object Writer {
   def put[O](o: => O): Writer[O, Unit] =
     Put(() => o)
 
-  def tell[R <: Effects, O](o: => O)(implicit member: Member[Writer[O, ?], R]): Eff[R, Unit] =
+  def tell[R <: Coproduct, O](o: => O)(implicit member: Members[Writer[O, ?], R], inject: Inject[R, Writer[O, Unit]]): Eff[R, Unit] =
     // the type annotation is necessary here to prevent a compiler error
     send[Writer[O, ?], R, Unit](put(o))
 
@@ -26,7 +27,7 @@ object Writer {
    * (\(Put o) k → k () = \(x,l ) → return (x, o: l ))
    */
 
-  def runWriter[R <: Effects, O, A](w: Eff[Writer[O, ?] <:: R, A]): Eff[R, (A, Vector[O])] = {
+  def runWriter[R <: Coproduct, O, A](w: Eff[Writer[O, A] :+: R, A]): Eff[R, (A, Vector[O])] = {
     val putOne = (a: A) => EffMonad[R].point((a, Vector[O]()))
 
     val putRest = new EffCont[Writer[O, ?], R, (A, Vector[O])] {
