@@ -22,16 +22,23 @@ object Example {
 −− ⇒ Eff r Int
 rdwr = do{ tell ”begin”; r ← addN 10; tell ”end”; return r }
    */
-  def readWrite[R <: Effects](implicit member1: Member[Reader[Int, ?], R], member2: Member[Writer[String, ?], R]) = //: Eff[Reader[Int, ?] <:: Writer[String, ?] <:: EffectsNil, Int] =
+  def readWrite[R <: Effects](implicit member1: Member[Reader[Int, ?], R], member2: Member[Writer[String, ?], R]): Eff[R, Int] =
     for {
       _ <- tell("begin")
       r <- addN(10)
       _ <- tell("end")
     } yield r
 
-  def execute[R <: Reader[Int, ?] <::  Writer[String, ?] <:: Effects] = {
-    import Reader._, Writer._
-    //runReader(20)(readWrite[Reader[Int, ?] <:: Writer[String, ?] <:: Effects])
+  type Stack = Writer[String, ?] <:: Reader[Int, ?] <:: EffectsNil
+
+  def test {
+
+    implicit val m1: Member[Reader[Int, ?], Stack] = ???
+
+    implicit val m2: Member[Writer[String, ?], Stack] =
+      EffectMember[Writer[String, ?], Reader[Int, ?] <:: EffectsNil]
+
+    runReader(runWriter(readWrite[Stack]))(10)
   }
 
 }

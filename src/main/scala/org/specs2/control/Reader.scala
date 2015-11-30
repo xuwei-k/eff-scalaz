@@ -23,16 +23,16 @@ object Reader {
         member.project(union).map(_ => runReaderOnly(initial)(continuation.apply(initial))).getOrElse(initial)
     }
 
-  def runReader[R <: Effects, A](initial: A)(r: Eff[Reader[A, ?] <:: R, A]): Eff[R, A] = {
-    val readOne = (a: A) => EffMonad[R].point(a)
+  def runReader[R <: Effects, A, B](r: Eff[Reader[A, ?] <:: R, B])(initial: A): Eff[R, B] = {
+    val readOne = (b: B) => EffMonad[R].point(b)
 
-    val readRest = new EffCont[Reader[A, ?], R, A] {
-      def apply[X] = (r: Reader[A, X]) => (continuation: X => Eff[R, A]) => r match {
+    val readRest = new EffCont[Reader[A, ?], R, B] {
+      def apply[X] = (r: Reader[A, X]) => (continuation: X => Eff[R, B]) => r match {
         case Get() => continuation(initial.asInstanceOf[X])
       }
     }
 
-    relay[R, Reader[A, ?], A, A](readOne, readRest)(r)
+    relay[R, Reader[A, ?], B, B](readOne, readRest)(r)
   }
 
   type ReaderStack[A, E <: Effects] = Reader[A, ?] <:: E
