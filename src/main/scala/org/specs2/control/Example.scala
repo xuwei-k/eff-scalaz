@@ -3,9 +3,12 @@ package org.specs2.control
 import scalaz._, Scalaz._
 import Eff._
 import Effects._
+import MemberNat._
 import Member._
-import Reader.{ask, runReader}
+import org.specs2.control.Reader.{ReaderStack, ask, runReader}
 import Writer.{tell, runWriter}
+import Union._
+import Reader._
 
 object Example {
 
@@ -18,9 +21,8 @@ object Example {
 
 
   /**
-   * − rdwr :: (Member (Reader Int) r, Member (Writer String) r)
-−− ⇒ Eff r Int
-rdwr = do{ tell ”begin”; r ← addN 10; tell ”end”; return r }
+   *  rdwr :: (Member (Reader Int) r, Member (Writer String) r) ⇒ Eff r Int
+   *  rdwr = do{ tell ”begin”; r ← addN 10; tell ”end”; return r }
    */
   def readWrite[R <: Effects](implicit member1: Member[Reader[Int, ?], R], member2: Member[Writer[String, ?], R]): Eff[R, Int] =
     for {
@@ -33,10 +35,12 @@ rdwr = do{ tell ”begin”; r ← addN 10; tell ”end”; return r }
 
   def test {
 
-    implicit val m1: Member[Reader[Int, ?], Stack] = ???
 
-    implicit val m2: Member[Writer[String, ?], Stack] =
-      EffectMember[Writer[String, ?], Reader[Int, ?] <:: EffectsNil]
+    implicit def m1: Member[Reader[Int, ?], Stack] =
+      MemberNatIsMember[Reader[Int, ?], Stack, S[Zero]]
+
+    implicit def m2: Member[Writer[String, ?], Stack] =
+      MemberNatIsMember[Writer[String, ?], Stack, Zero]
 
     runReader(runWriter(readWrite[Stack]))(10)
   }
