@@ -1,14 +1,12 @@
 package org.specs2.control
 
-import scalaz._, Scalaz._
-import Eff._
-import Effects._
-import MemberNat._
-import Member._
-import org.specs2.control.Reader.{ReaderStack, ask, runReader}
+import scalaz._
+import scalaz.syntax.monad._        
+import Effects.{<::}
+import Member.MemberNatIsMember
+import MemberNat.{ZeroMemberNat, SuccessorMemberNat}  
 import Writer.{tell, runWriter}
-import Union._
-import Reader._
+import Reader.{ask, runReader}
 
 object Example {
 
@@ -31,18 +29,17 @@ object Example {
       _ <- tell("end")
     } yield r
 
-  type Stack = Writer[String, ?] <:: Reader[Int, ?] <:: EffectsNil
+  type Stack[A, B] = Writer[A, ?] <:: Reader[B, ?] <:: EffectsNil
 
   def test {
 
+    implicit def ReaderStack[A, B]: Member[Reader[B, ?], Stack[A, B]] =
+      MemberNatIsMember[Reader[B, ?], Stack[A, B], S[Zero]]
 
-    implicit def m1: Member[Reader[Int, ?], Stack] =
-      MemberNatIsMember[Reader[Int, ?], Stack, S[Zero]]
+    implicit def WriterStack[A, B]: Member[Writer[A, ?], Stack[A, B]] =
+      MemberNatIsMember[Writer[A, ?], Stack[A, B], Zero]
 
-    implicit def m2: Member[Writer[String, ?], Stack] =
-      MemberNatIsMember[Writer[String, ?], Stack, Zero]
-
-    runReader(runWriter(readWrite[Stack]))(10)
+    runReader(runWriter(readWrite[Stack[String, Int]]))(10)
   }
 
 }

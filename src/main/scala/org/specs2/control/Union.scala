@@ -58,7 +58,7 @@ trait MemberNat[T[_], R <: Effects, N <: Nat] {
   def project[V](rank: P[N], union: Union[R, V]): Option[T[V]]
 }
 
-object MemberNat extends MemberNatLow {
+object MemberNat {
   /**
    * instance (r ~ (t ': r')) => Member' t r Z where
    * inj' _ = UNow
@@ -66,20 +66,23 @@ object MemberNat extends MemberNatLow {
    * prj' _ _        = Nothing
    *
    * Injection and projection for rank 0
+   * 
+   * The idea is that:
+   * 
+   *  - if T is an effect
+   *  - then it is the first effect of T <:: R
    */
-  def ZeroMemberNat[T[_], R <: Effects]: MemberNat[T, T <:: R, Zero] = new MemberNat[T, T <:: R, Zero] {
+  implicit def ZeroMemberNat[T[_], R <: Effects]: MemberNat[T, T <:: R, Zero] = new MemberNat[T, T <:: R, Zero] {
     def inject[V](rank: P[Zero], effect: T[V]): Union[T <:: R, V] =
       Union.now(effect)
 
     def project[V](predicate: P[Zero], union: Union[T <:: R, V]): Option[T[V]] =
       union match {
-      case UnionNow(x) => Some(x)
-      case _ => None
+        case UnionNow(x) => Some(x)
+        case _ => None
       }
   }
-}
 
-trait MemberNatLow {
   /**
    * instance (r ~ (t' ': r'), Member' t r' n) => Member' t r (S n) where
    * inj' _ = UNext . inj' (P::P n)
@@ -93,24 +96,22 @@ trait MemberNatLow {
    * t  == T
    * t' == O
    *
+   * The idea is that:
+   * 
+   *  - if T is one effect of R for a given N
+   *  - then T is one effect of O <:: R for S[N]
+   * 
    */
-  def SuccessorMemberNat[T[_], O[_], R <: Effects, N <: Nat](implicit m: MemberNat[T, R, N]): MemberNat[T, O <:: R, S[N]] = new MemberNat[T, O <:: R, S[N]] {
+  implicit def SuccessorMemberNat[T[_], O[_], R <: Effects, N <: Nat](implicit m: MemberNat[T, R, N]): MemberNat[T, O <:: R, S[N]] = new MemberNat[T, O <:: R, S[N]] {
     def inject[V](predicate: P[S[N]], effect: T[V]) =
       Union.next(m.inject[V](P[N](), effect))
 
     def project[V](predicate: P[S[N]], union: Union[O <:: R, V]) =
       union match {
-      case UnionNow(_) => None
-      case UnionNext(u) => m.project[V](P[N](), u)
+        case UnionNow(_) => None
+        case UnionNext(u) => m.project[V](P[N](), u)
       }
   }
-
-  /**
-   * type family FindElem (t :: * -> *) r :: Nat where
-   * FindElem t (t ': r)  = Z
-   * FindElem t (any ': r)  = S (FindElem t r)
-   */
-  //   trait FindElem[T[_], R <: Effects]
 
 }
 
@@ -158,8 +159,8 @@ object Member {
    */
   def decompose[T[_], R <: Effects, V](u: Union[T <:: R, V]): Union[R, V] \/ T[V] =
     u match {
-    case UnionNow(tv) => tv.right
-    case UnionNext(union) => union.left
+      case UnionNow(tv) => tv.right
+      case UnionNext(union) => union.left
     }
 }
 
