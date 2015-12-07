@@ -21,7 +21,10 @@ import Member._
  */
 sealed trait Eff[R, A]
 
-case class Pure[R, A](run: () => A) extends Eff[R, A]
+case class Pure[R, A](private val run: () => A) extends Eff[R, A] {
+  def value: A =
+    run()
+}
 case class Impure[R, A](union: Union[R, Any], continuation: Arrs[R, Any, A]) extends Eff[R, A]
 
 object Eff {
@@ -95,10 +98,24 @@ case class Arrs[R, A, B] private(functions: Vector[Any => Eff[R, Any]]) {
   def append[C](f: B => Eff[R, C]): Arrs[R, A, C] =
     Arrs(functions :+ f.asInstanceOf[Any => Eff[R, Any]])
 
+  /**
+   * qApp :: Arrs r b w → b → Eff r w
+   * qApp q x = case tviewl q of
+   *   TOne k → k x
+   *   k : | t → bind’ (k x) t
+   *   where bind’ :: Eff r a → Arrs r a b → Eff r b
+   *         bind’ (Pure y) k = qApp k y
+   * bind’ (Impure u q) k = Impure u (q >< k)
+   */
   def apply(a: A): Eff[R, B] =
-    functions.tail.foldLeft(functions.head(a.asInstanceOf[Any])) { (res, cur) =>
-      res >>= cur
-    }.asInstanceOf[Eff[R, B]]
+    functions match {
+      case Vector(f) => f(a).asInstanceOf[Eff[R, B]]  
+      case f +: rest => 
+        f(a) match {
+          case p: Pure[_,_] => Arrs(rest)(p.value)  
+          case Impure(u, q) => Impure[R, B](u, q.copy(functions = q.functions ++ rest))
+        }  
+    }
 }
 
 object Arrs {

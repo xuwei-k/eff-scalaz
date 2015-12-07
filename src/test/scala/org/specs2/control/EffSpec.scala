@@ -18,7 +18,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     run(runReader(ask[Reader[Int, ?] <:: EffectsNil, Int])(initial)) === initial
   }
  
-  def readerMonadBind= prop { (initial: Int) =>
+  def readerMonadBind = { val initial = 10 //prop { (initial: Int) =>
     type S = Reader[Int, ?] <:: EffectsNil
   
     val read: Eff[S, Int] = 
