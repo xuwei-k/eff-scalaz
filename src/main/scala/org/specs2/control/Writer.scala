@@ -9,7 +9,10 @@ import Member._
 
 sealed trait Writer[O, X]
 
-case class Put[O](o: () => O) extends Writer[O, Unit]
+case class Put[O](private val run: () => O) extends Writer[O, Unit] {
+  def value: O = 
+    run()   
+}
 
 object Writer {
 
@@ -27,19 +30,22 @@ object Writer {
    * handle relay (\x → return (x,[]))
    * (\(Put o) k → k () = \(x,l ) → return (x, o: l ))
    */
-  def runWriter[R <: Effects, O, A](w: Eff[Writer[O, ?] <:: R, A]): Eff[R, (A, Vector[O])] = {
-    val putOne = (a: A) => EffMonad[R].point((a, Vector[O]()))
+  def runWriter[R <: Effects, O, A](w: Eff[Writer[O, ?] <:: R, A]): Eff[R, (A, List[O])] = {
+    val putOne = (a: A) => EffMonad[R].point((a, List[O]()))
 
-    val putRest = new EffCont[Writer[O, ?], R, (A, Vector[O])] {
-      def apply[X] = (w: Writer[O, X]) => (continuation: X => Eff[R, (A, Vector[O])]) => w match {
-        case Put(o) => continuation(()) >>= ((xl: (A, Vector[O])) => EffMonad.point((xl._1, xl._2 :+ o)))
+    val putRest = new EffCont[Writer[O, ?], R, (A, List[O])] {
+      def apply[X](w: Writer[O, X])(continuation: X => Eff[R, (A, List[O])]): Eff[R, (A, List[O])] = w match {
+        case p @ Put(_) => continuation(()) >>= ((xl: (A, List[O])) => EffMonad.point((xl._1, p.value +: xl._2)))
       }
     }
 
-    relay[R, Writer[O, ?], A, (A, Vector[O])](putOne, putRest)(w)
+    relay[R, Writer[O, ?], A, (A, List[O])](putOne, putRest)(w)
   }
 
   type WriterStack[O, E <: Effects] = Writer[O, ?] <:: E
+
+  implicit def WriterMember[R <: Effects, A]: Member[Writer[A, ?], Writer[A, ?] <:: R] = 
+    Member.MemberNatIsMember[Writer[A, ?], Writer[A, ?] <:: R, Zero]  
 
   implicit def WriterMemberNat[R <: Effects, A]: MemberNat[Writer[A, ?], Writer[A, ?] <:: R, Zero] =
     ZeroMemberNat[Writer[A, ?], R]

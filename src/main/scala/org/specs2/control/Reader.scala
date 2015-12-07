@@ -29,7 +29,7 @@ object Reader {
     val readOne = (b: B) => EffMonad[R].point(b)
 
     val readRest = new EffCont[Reader[A, ?], R, B] {
-      def apply[X] = (r: Reader[A, X]) => (continuation: X => Eff[R, B]) => r match {
+      def apply[X](r: Reader[A, X])(continuation: X => Eff[R, B]): Eff[R, B] = r match {
         case Get() => continuation(initial.asInstanceOf[X])
       }
     }

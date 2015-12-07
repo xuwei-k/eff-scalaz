@@ -47,23 +47,23 @@ object Eff {
    * send :: Member t r ⇒ t v → Eff r v
    * send t = Impure (inj t) (tsingleton Pure)
    */
-   def send[T[_], R <: Effects, V](tv: T[V])(implicit member: Member[T, R]): Eff[R, V] =
-     impure(member.inject(tv), Arrs.singleton((v: V) => EffMonad[R].point(v)))
+  def send[T[_], R <: Effects, V](tv: T[V])(implicit member: Member[T, R]): Eff[R, V] =
+    impure(member.inject(tv), Arrs.singleton((v: V) => EffMonad[R].point(v)))
 
-   def pure[R, A](run: A): Eff[R, A] =
-     Pure(() => run)
+  def pure[R, A](run: A): Eff[R, A] =
+    Pure(() => run)
 
-   def impure[R, A, X](union: Union[R, X], continuation: Arrs[R, X, A]): Eff[R, A] =
-     Impure(union.asInstanceOf[Union[R, Any]], continuation.asInstanceOf[Arrs[R, Any, A]])
+  def impure[R, A, X](union: Union[R, X], continuation: Arrs[R, X, A]): Eff[R, A] =
+    Impure(union.asInstanceOf[Union[R, Any]], continuation.asInstanceOf[Arrs[R, Any, A]])
 
-   def run[A](eff: Eff[EffectsNil, A]): A =
-     eff match {
-       case Pure(run) => run()
-       case _ => sys.error("impossible")
-     }
+  def run[A](eff: Eff[EffectsNil, A]): A =
+    eff match {
+      case Pure(run) => run()
+      case _         => sys.error("impossible")
+    }
 
   trait EffCont[M[_], R, A] {
-    def apply[X]: M[X] => (X => Eff[R, A]) => Eff[R, A]
+    def apply[X](m: M[X])(continuation: X => Eff[R, A]): Eff[R, A]
   }
 
   /**
