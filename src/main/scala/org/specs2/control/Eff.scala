@@ -23,7 +23,7 @@ import Member._
  */
 sealed trait Eff[R, A]
 
-case class Arrs[R, A, B](functions: Vector[Any => Eff[R, Any]]) {
+case class Arrs[R, A, B] private(functions: Vector[Any => Eff[R, Any]]) {
   def append[C](f: B => Eff[R, C]): Arrs[R, A, C] =
     Arrs(functions :+ f.asInstanceOf[Any => Eff[R, Any]])
 
@@ -67,21 +67,21 @@ object Eff {
    def impure[R, A, X](union: Union[R, X], continuation: Arrs[R, X, A]): Eff[R, A] =
      Impure(union.asInstanceOf[Union[R, Any]], continuation.asInstanceOf[Arrs[R, Any, A]])
 
-  def run[A](eff: Eff[EffectsNil, A]): A =
-    eff match {
-      case Pure(run) => run()
-      case _ => sys.error("impossible")
-    }
+   def run[A](eff: Eff[EffectsNil, A]): A =
+     eff match {
+       case Pure(run) => run()
+       case _ => sys.error("impossible")
+     }
 
   /**
    * handle relay :: (a → Eff r w) →
-(∀ v. t v → Arr r v w → Eff r w) →
-Eff (t ’: r ) a → Eff r w
-handle relay ret (Pure x) = ret x
-handle relay ret h (Impure u q) = case decomp u of
-Right x → h x k
-Left u → Impure u (tsingleton k)
-where k = qComp q (handle relay ret h)
+   *                 (∀ v. t v → Arr r v w → Eff r w) →
+   *                 Eff (t ’: r ) a → Eff r w
+   * handle relay ret (Pure x) = ret x
+   * handle relay ret h (Impure u q) = case decomp u of
+   *     Right x → h x k
+   *     Left u → Impure u (tsingleton k)
+   *   where k = qComp q (handle relay ret h)
    */
 
   trait EffCont[M[_], R, A] {
@@ -93,7 +93,7 @@ where k = qComp q (handle relay ret h)
       case Pure(a) => ret(a())
       case Impure(union, continuation) =>
         decompose[M, R, Any](union.asInstanceOf[Union[M <:: R, Any]]) match {
-          case \/-(mx) => cont.apply(mx)(continuation.asInstanceOf[Arr[R, Any, B]])
+          case \/-(mx) => cont.apply(mx)(continuation.asInstanceOf[Arrs[R, Any, B]].apply)
           case -\/(u)  => impure(u.asInstanceOf[Union[R, Any]], Arrs.singleton((x: Any) => relay(ret, cont)(continuation.apply(x))))
         }
     }

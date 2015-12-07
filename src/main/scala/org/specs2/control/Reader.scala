@@ -19,10 +19,10 @@ object Reader {
 
   def runReaderOnly[R, A](initial: A)(r: Eff[R, A])(implicit member: Member[Reader[A, ?], R]): A =
     r match {
-    case Pure(run) => run()
+      case Pure(run) => run()
 
-    case Impure(union, continuation) =>
-      member.project(union).map(_ => runReaderOnly(initial)(continuation.apply(initial))).getOrElse(initial)
+      case Impure(union, continuation) =>
+        member.project(union).map(_ => runReaderOnly(initial)(continuation.apply(initial))).getOrElse(initial)
     }
 
   def runReader[R <: Effects, A, B](r: Eff[Reader[A, ?] <:: R, B])(initial: A): Eff[R, B] = {
@@ -30,7 +30,7 @@ object Reader {
 
     val readRest = new EffCont[Reader[A, ?], R, B] {
       def apply[X] = (r: Reader[A, X]) => (continuation: X => Eff[R, B]) => r match {
-      case Get() => continuation(initial.asInstanceOf[X])
+        case Get() => continuation(initial.asInstanceOf[X])
       }
     }
 
@@ -38,6 +38,9 @@ object Reader {
   }
 
   type ReaderStack[A, E <: Effects] = Reader[A, ?] <:: E
+
+  implicit def ReaderMember[R <: Effects, A]: Member[Reader[A, ?], Reader[A, ?] <:: R] = 
+    Member.MemberNatIsMember[Reader[A, ?], Reader[A, ?] <:: R, Zero]  
 
   implicit def ReaderMemberNat[R <: Effects, A]: MemberNat[Reader[A, ?], Reader[A, ?] <:: R, Zero] =
     ZeroMemberNat[Reader[A, ?], R]
