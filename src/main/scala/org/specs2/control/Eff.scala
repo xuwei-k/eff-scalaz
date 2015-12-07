@@ -6,8 +6,6 @@ import Effects._
 import Member._
 
 /**
- *
- *
  * data Eff f a where
  * Pure :: a → Eff f a
  * Impure :: f x → (x → Eff f a) → Eff f a
@@ -23,20 +21,8 @@ import Member._
  */
 sealed trait Eff[R, A]
 
-case class Arrs[R, A, B] private(functions: Vector[Any => Eff[R, Any]]) {
-  def append[C](f: B => Eff[R, C]): Arrs[R, A, C] =
-    Arrs(functions :+ f.asInstanceOf[Any => Eff[R, Any]])
-
-  def apply(a: A): Eff[R, B] =
-    functions.tail.foldLeft(functions.head(a.asInstanceOf[Any])) { (res, cur) =>
-      res >>= cur
-    }.asInstanceOf[Eff[R, B]]
-}
-
-object Arrs {
-  def singleton[R, A, B](f: A => Eff[R, B]): Arrs[R, A, B] =
-    Arrs(Vector(f.asInstanceOf[Any => Eff[R, Any]]))
-}
+case class Pure[R, A](run: () => A) extends Eff[R, A]
+case class Impure[R, A](union: Union[R, Any], continuation: Arrs[R, Any, A]) extends Eff[R, A]
 
 object Eff {
 
@@ -73,6 +59,10 @@ object Eff {
        case _ => sys.error("impossible")
      }
 
+  trait EffCont[M[_], R, A] {
+    def apply[X]: M[X] => (X => Eff[R, A]) => Eff[R, A]
+  }
+
   /**
    * handle relay :: (a → Eff r w) →
    *                 (∀ v. t v → Arr r v w → Eff r w) →
@@ -83,27 +73,39 @@ object Eff {
    *     Left u → Impure u (tsingleton k)
    *   where k = qComp q (handle relay ret h)
    */
-
-  trait EffCont[M[_], R, A] {
-    def apply[X]: M[X] => (X => Eff[R, A]) => Eff[R, A]
-  }
-
   def relay[R <: Effects, M[_], A, B](ret: A => Eff[R, B], cont: EffCont[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] =
     effects match {
       case Pure(a) => ret(a())
       case Impure(union, continuation) =>
         decompose[M, R, Any](union.asInstanceOf[Union[M <:: R, Any]]) match {
-          case \/-(mx) => cont.apply(mx)(continuation.asInstanceOf[Arrs[R, Any, B]].apply)
+          case \/-(mx) => cont.apply(mx)(qComp(continuation, relay(ret, cont)))
           case -\/(u)  => impure(u.asInstanceOf[Union[R, Any]], Arrs.singleton((x: Any) => relay(ret, cont)(continuation.apply(x))))
         }
     }
 
+  /**
+   * qComp :: Arrs r a b → (Eff r b → Eff r’ c) → Arr r’ a c
+   * qComp g h = h ◦ qApp g
+   */
+  private def qComp[R1, R2, A, B, C](arrs: Arrs[R1, A, B], f: Eff[R1, B] => Eff[R2, C]): Arr[R2, A, C] = 
+    (a: A) => f(arrs(a))   
 }
 
+case class Arrs[R, A, B] private(functions: Vector[Any => Eff[R, Any]]) {
+  def append[C](f: B => Eff[R, C]): Arrs[R, A, C] =
+    Arrs(functions :+ f.asInstanceOf[Any => Eff[R, Any]])
 
-case class Pure[R, A](run: () => A) extends Eff[R, A]
+  def apply(a: A): Eff[R, B] =
+    functions.tail.foldLeft(functions.head(a.asInstanceOf[Any])) { (res, cur) =>
+      res >>= cur
+    }.asInstanceOf[Eff[R, B]]
+}
 
-case class Impure[R, A](union: Union[R, Any], continuation: Arrs[R, Any, A]) extends Eff[R, A]
+object Arrs {
+  def singleton[R, A, B](f: A => Eff[R, B]): Arrs[R, A, B] =
+    Arrs(Vector(f.asInstanceOf[Any => Eff[R, Any]]))
+}
+
 
 /**
  * EFFECTS
