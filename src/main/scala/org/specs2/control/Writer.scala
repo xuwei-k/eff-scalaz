@@ -28,7 +28,7 @@ object Writer {
    * runWriter :: Eff (Writer o ’: r ) a → Eff r (a,[ o])
    * runWriter =
    * handle relay (\x → return (x,[]))
-   * (\(Put o) k → k () = \(x,l ) → return (x, o: l ))
+   * (\(Put o) k → k () >>= \(x,l ) → return (x, o: l ))
    */
   def runWriter[R <: Effects, O, A](w: Eff[Writer[O, ?] <:: R, A]): Eff[R, (A, List[O])] = {
     val putOne = (a: A) => EffMonad[R].point((a, List[O]()))

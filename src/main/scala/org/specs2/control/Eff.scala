@@ -7,16 +7,8 @@ import Member._
 
 /**
  * data Eff f a where
- * Pure :: a → Eff f a
- * Impure :: f x → (x → Eff f a) → Eff f a
- *
- *
- * Objective: model 4 effects
- *
- * - IO
- * - Read (for some configuration)
- * - Write (for some logs)
- * - Error (for user errors)
+ *   Pure :: a → Eff f a
+ *   Impure :: f x → (x → Eff f a) → Eff f a
  *
  */
 sealed trait Eff[R, A]

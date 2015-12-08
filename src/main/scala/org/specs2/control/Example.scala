@@ -8,6 +8,16 @@ import MemberNat.{ZeroMemberNat, SuccessorMemberNat}
 import Writer.{tell, runWriter}
 import Reader.{ask, runReader}
 
+/**
+ *  
+ * Objective: model 4 effects
+ *
+ * - IO
+ * - Read (for some configuration)
+ * - Write (for some logs)
+ * - Error (for user errors)
+ *
+ */
 object Example {
 
   def addGet[R](n: Int)(implicit member: Member[Reader[Int, ?], R]): Eff[R, Int] =
