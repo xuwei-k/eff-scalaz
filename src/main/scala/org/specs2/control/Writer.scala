@@ -31,15 +31,13 @@ object Writer {
    * (\(Put o) k → k () >>= \(x,l ) → return (x, o: l ))
    */
   def runWriter[R <: Effects, O, A](w: Eff[Writer[O, ?] <:: R, A]): Eff[R, (A, List[O])] = {
-    val putOne = (a: A) => EffMonad[R].point((a, List[O]()))
-
     val putRest = new EffCont[Writer[O, ?], R, (A, List[O])] {
       def apply[X](w: Writer[O, X])(continuation: X => Eff[R, (A, List[O])]): Eff[R, (A, List[O])] = w match {
         case p @ Put(_) => continuation(()) >>= ((xl: (A, List[O])) => EffMonad.point((xl._1, p.value +: xl._2)))
       }
     }
 
-    relay[R, Writer[O, ?], A, (A, List[O])](putOne, putRest)(w)
+    relay1[R, Writer[O, ?], A, (A, List[O])]((a: A) => (a, List[O]()))(putRest)(w)
   }
 
   type WriterStack[O, E <: Effects] = Writer[O, ?] <:: E

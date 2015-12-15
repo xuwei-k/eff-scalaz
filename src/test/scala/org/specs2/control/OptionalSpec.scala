@@ -63,7 +63,7 @@ class OptionalSpec extends Specification with ScalaCheck { def is = s2"""
     // run effects
     val initial = init.value  
     
-    run(runReader(runOptional(readOptional))(initial)) must_== 
+    run(runReader(initial)(runOptional(readOptional))) must_== 
       Some(initial + someValue.value)
   }
 }

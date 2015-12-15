@@ -21,8 +21,7 @@ object Action {
 
   type ActionStack = Console <:: Warnings <:: CheckedString <:: Eval <:: EffectsNil
 
-  implicit def EvalEffect: Member[Eval, ActionStack] = 
-    new Member[Eval, ActionStack] {
+  implicit def EvalEffect: Member[Eval, ActionStack] = new Member[Eval, ActionStack] {
     def inject[V](tv: Eval[V]): Union[ActionStack, V] = 
       UnionNext(UnionNext(UnionNext(UnionNow(tv))))  
     def project[V](u: Union[ActionStack, V]): Option[Eval[V]] = 
@@ -32,8 +31,7 @@ object Action {
       }
   } 
      
-  implicit def CheckedStringEffect: Member[CheckedString, ActionStack] = 
-    new Member[CheckedString, ActionStack] {
+  implicit def CheckedStringEffect: Member[CheckedString, ActionStack] = new Member[CheckedString, ActionStack] {
     def inject[V](tv: CheckedString[V]): Union[ActionStack, V] = 
       UnionNext(UnionNext(UnionNow(tv)))  
     def project[V](u: Union[ActionStack, V]): Option[CheckedString[V]] = 
@@ -43,8 +41,7 @@ object Action {
       }
   } 
   
-  implicit def WarningsEffect: Member[Warnings, ActionStack] = 
-    new Member[Warnings, ActionStack] {
+  implicit def WarningsEffect: Member[Warnings, ActionStack] = new Member[Warnings, ActionStack] {
     def inject[V](tv: Warnings[V]): Union[ActionStack, V] = 
       UnionNext(UnionNow(tv))  
     def project[V](u: Union[ActionStack, V]): Option[Warnings[V]] = 
@@ -96,36 +93,32 @@ object Action {
    * This interpreter prints messages to the console
    */
   def runConsole[R <: Effects, A](w: Eff[Console <:: R, A]): Eff[R, A] = 
-    runConsoleToPrinter(w, m => println(m))
+    runConsoleToPrinter(m => println(m))(w)
 
   /**
    * This interpreter prints messages to a printing function
    */
-  def runConsoleToPrinter[R <: Effects, A](w: Eff[Console <:: R, A], printer: String => Unit): Eff[R, A] = {
-    val putOne = (a: A) => EffMonad[R].point(a)
-
+  def runConsoleToPrinter[R <: Effects, A](printer: String => Unit): Eff[Console <:: R, A] => Eff[R, A] = {
     val putRest = new EffCont[Console, R, A] {
       def apply[X](w: Console[X])(continuation: X => Eff[R, A]): Eff[R, A] = Tag.unwrap(w) match {
         case Put(m) => printer(m()); continuation(())
       }
     }
 
-    relay[R, Console, A, A](putOne, putRest)(w)
+    relay1((a: A) => a)(putRest)
   }
 
   /**
-   * This interpreter cumulate warnings
+   * This interpreter cumulates warnings
    */
   def runWarnings[R <: Effects, A](w: Eff[Warnings <:: R, A]): Eff[R, (A, Vector[String])] = {
-    val putOne = (a: A) => EffMonad[R].point((a, Vector[String]()))
-
     val putRest = new EffCont[Warnings, R, (A, Vector[String])] {
       def apply[X](w: Warnings[X])(continuation: X => Eff[R, (A, Vector[String])]): Eff[R, (A, Vector[String])] = Tag.unwrap(w) match {
         case Put(m) => continuation(()) >>= (al => EffMonad[R].point((al._1, al._2 :+ m())))
       }
     }
 
-    relay[R, Warnings, A, (A, Vector[String])](putOne, putRest)(w)
+    relay1((a: A) => (a, Vector[String]()))(putRest)(w)
   }
      
 }

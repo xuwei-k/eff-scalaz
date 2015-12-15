@@ -80,7 +80,10 @@ object Eff {
           case -\/(u)  => impure(u.asInstanceOf[Union[R, Any]], Arrs.singleton((x: Any) => relay(ret, cont)(continuation.apply(x))))
         }
     }
-
+    
+  def relay1[R <: Effects, M[_], A, B](ret: A => B)(cont: EffCont[M, R, B])(e: Eff[M <:: R, A]): Eff[R, B] =
+    relay((a: A) => EffMonad[R].point(ret(a)), cont)(e)
+  
   /**
    * qComp :: Arrs r a b → (Eff r b → Eff r’ c) → Arr r’ a c
    * qComp g h = h ◦ qApp g

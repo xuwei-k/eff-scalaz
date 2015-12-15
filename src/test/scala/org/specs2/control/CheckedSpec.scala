@@ -68,7 +68,7 @@ class CheckedSpec extends Specification with ScalaCheck { def is = s2"""
     // run effects
     val initial = init.value  
     
-    run(runReader(runChecked(readChecked))(initial)) must_== 
+    run(runReader(initial)(runChecked(readChecked))) must_== 
       Right(initial.toInt + someValue.value)
   }
 }

@@ -19,7 +19,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 """
 
   def readerMonadPure = prop { (initial: Int) =>
-    run(runReader(ask[Reader[Int, ?] <:: EffectsNil, Int])(initial)) === initial
+    run(runReader(initial)(ask[Reader[Int, ?] <:: EffectsNil, Int])) === initial
   }
  
   def readerMonadBind = prop { (initial: Int) =>
@@ -31,7 +31,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
         j <- ask[S, Int]
       } yield i + j
     
-    run(runReader(read)(initial)) === initial * 2
+    run(runReader(initial)(read)) === initial * 2
   }
   
   def writerTwice = prop { _ : Int =>
@@ -69,7 +69,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     
     // run effects
     val initial = init.value  
-    run(runReader(runWriter(readWrite))(initial)) must_== 
+    run(runReader(initial)(runWriter(readWrite))) must_== 
       (initial * 2, List("initial="+initial, "result="+(initial*2)))
   }
 

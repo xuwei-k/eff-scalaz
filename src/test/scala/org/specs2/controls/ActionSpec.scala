@@ -24,13 +24,11 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
   def computeValues =
     runWith(2, 3).map(_._1) must beRight(5)
 
-  def stop = {
+  def stop =
     runWith(20, 30) must_== Left("too big")
-  }
 
   def logMessages = {
     val messages = new scala.collection.mutable.ListBuffer[String]  
-    
     runWith(1, 2, m => messages.append(m))
     
     messages.toList === List("got the value 1", "got the value 2")
@@ -45,7 +43,7 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
    */
   
   def runWith(i: Int, j: Int, printer: String => Unit = s => ()): Either[String, (Int, Vector[String])] =
-    run(runEval(runChecked(runWarnings(runConsoleToPrinter(actions(i, j), printer)))))
+    run(runEval(runChecked(runWarnings(runConsoleToPrinter(printer)(actions(i, j))))))
   
   def actions(i: Int, j: Int): Eff[ActionStack, Int] = for {
     x <- evalIO(IO(i))
