@@ -61,15 +61,15 @@ object Action {
       }
   } 
   
-  def log[R <: Effects](message: String, doIt: Boolean = true)(implicit m: Member[Console, R]): Eff[R, Unit] = 
+  def log[R](message: String, doIt: Boolean = true)(implicit m: Member[Console, R]): Eff[R, Unit] = 
     if (doIt) Writer.tell(message)(Member.untagMember[Writer[String, ?], R, ConsoleTag](m))
     else      EffMonad.point(())
     
-  def logThrowable[R <: Effects](t: Throwable, doIt: Boolean = true)(implicit m: Member[Console, R]): Eff[R, Unit] =
+  def logThrowable[R](t: Throwable, doIt: Boolean = true)(implicit m: Member[Console, R]): Eff[R, Unit] =
     if (doIt) logThrowable(t) 
     else      EffMonad.point(())
 
-  def logThrowable[R <: Effects](t: Throwable)(implicit m: Member[Console, R]): Eff[R, Unit] =
+  def logThrowable[R](t: Throwable)(implicit m: Member[Console, R]): Eff[R, Unit] =
     log(t.getMessage, doIt = true)(m) >>
     log(t.getStackTrace.mkString("\n"), doIt = true) >>
       (if (t.getCause != null) logThrowable(t.getCause)
@@ -77,7 +77,7 @@ object Action {
        
        
   /** warn the user about something that is probably wrong on his side, this is not a specs2 bug */
-  def warn[R <: Effects](message: String)(implicit m: Member[Warnings, R]): Eff[R, Unit] =
+  def warn[R](message: String)(implicit m: Member[Warnings, R]): Eff[R, Unit] =
     Writer.tell(message)(Member.untagMember[Writer[String, ?], R, WarningsTag](m))
 
   /**

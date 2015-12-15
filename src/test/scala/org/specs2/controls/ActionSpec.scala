@@ -5,8 +5,6 @@ import Action._
 import control.{Eval, Checked, Writer, Eff, Member, Effects, MemberNat}
 import Eval._ 
 import Checked.runChecked  
-import Member._
-import MemberNat._
 import Writer._    
 import Eff._  
 import scalaz.{Writer => _, Reader => _,_}, Scalaz._, effect.IO
@@ -44,7 +42,10 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
   
   def runWith(i: Int, j: Int, printer: String => Unit = s => ()): Either[String, (Int, Vector[String])] =
     run(runEval(runChecked(runWarnings(runConsoleToPrinter(printer)(actions(i, j))))))
-  
+
+  /**
+   * ActionStack actions: no annotation is necessary here
+   */
   def actions(i: Int, j: Int): Eff[ActionStack, Int] = for {
     x <- evalIO(IO(i))
     _ <- log("got the value "+x)
@@ -52,6 +53,24 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
     _ <- log("got the value "+y)
     s <- if (x + y > 10) Checked.ko("too big") else Checked.ok(x + y)
     _ <- if (s >= 5) warn("the sum is big: "+s) else Eff.unit[ActionStack]        
+  } yield s
+
+  /**
+   * "open" effects version of the same actions
+   * this one can be reused with more effects
+   */
+  def unboundActions[R](i: Int, j: Int)(
+    implicit m1: Member[Eval, R],
+             m2: Member[Console, R],
+             m3: Member[Warnings, R],
+             m4: Member[CheckedString, R]
+  ): Eff[R, Int] = for {
+    x <- evalIO[R, Int](IO(i))
+    _ <- log[R]("got the value "+x)
+    y <- evalIO[R, Int](IO(j))
+    _ <- log[R]("got the value "+y)
+    s <- if (x + y > 10) Checked.ko[R, String, Int]("too big") else Checked.ok[R, String, Int](x + y)
+    _ <- if (s >= 5) warn[R]("the sum is big: "+s) else Eff.unit[R]        
   } yield s
 
 }

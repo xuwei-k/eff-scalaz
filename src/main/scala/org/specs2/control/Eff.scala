@@ -39,10 +39,10 @@ object Eff {
    * send :: Member t r ⇒ t v → Eff r v
    * send t = Impure (inj t) (tsingleton Pure)
    */
-  def send[T[_], R <: Effects, V](tv: T[V])(implicit member: Member[T, R]): Eff[R, V] =
+  def send[T[_], R, V](tv: T[V])(implicit member: Member[T, R]): Eff[R, V] =
     impure(member.inject(tv), Arrs.singleton((v: V) => EffMonad[R].point(v)))
 
-  def unit[R <: Effects]: Eff[R, Unit] = 
+  def unit[R]: Eff[R, Unit] = 
     EffMonad.point(())
     
   def pure[R, A](run: A): Eff[R, A] =

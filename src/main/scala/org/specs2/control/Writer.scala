@@ -19,7 +19,7 @@ object Writer {
   def put[O](o: => O): Writer[O, Unit] =
     Put(() => o)
 
-  def tell[R <: Effects, O](o: => O)(implicit member: Member[Writer[O, ?], R]): Eff[R, Unit] =
+  def tell[R, O](o: => O)(implicit member: Member[Writer[O, ?], R]): Eff[R, Unit] =
     // the type annotation is necessary here to prevent a compiler error
     send[Writer[O, ?], R, Unit](put(o))
 

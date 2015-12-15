@@ -16,13 +16,13 @@ case class Evaluate[A](v: () => A) extends Eval[A] {
 
 object Eval {
   
-  def now[R <: Effects, A](a: =>A)(implicit m: Member[Eval, R]): Eff[R, A] = 
+  def now[R, A](a: =>A)(implicit m: Member[Eval, R]): Eff[R, A] = 
     pure(a)
 
-  def eval[R <: Effects, A](a: =>A)(implicit m: Member[Eval, R]): Eff[R, A] = 
+  def eval[R, A](a: =>A)(implicit m: Member[Eval, R]): Eff[R, A] = 
     impure(m.inject(Evaluate[A](() => a)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
   
-  def evalIO[R <: Effects, A](a: IO[A])(implicit m: Member[Eval, R]): Eff[R, A] =
+  def evalIO[R, A](a: IO[A])(implicit m: Member[Eval, R]): Eff[R, A] =
     eval(a.unsafePerformIO)
   
   def runEval[R <: Effects, A](r: Eff[Eval[?] <:: R, A]): Eff[R, A] = {

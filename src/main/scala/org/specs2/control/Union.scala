@@ -164,7 +164,7 @@ object Member {
     }
     
     
-  def untagMember[T[_], R <: Effects, TT](m: Member[({type X[A]=T[A] @@ TT})#X, R]): Member[T, R] = 
+  def untagMember[T[_], R, TT](m: Member[({type X[A]=T[A] @@ TT})#X, R]): Member[T, R] = 
     new Member[T, R] {
       def inject[V](tv: T[V]): Union[R, V] =
         m.inject(Tag(tv))
