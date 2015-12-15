@@ -162,6 +162,17 @@ object Member {
       case UnionNow(tv) => tv.right
       case UnionNext(union) => union.left
     }
+    
+    
+  def untagMember[T[_], R <: Effects, TT](m: Member[({type X[A]=T[A] @@ TT})#X, R]): Member[T, R] = 
+    new Member[T, R] {
+      def inject[V](tv: T[V]): Union[R, V] =
+        m.inject(Tag(tv))
+          
+      def project[V](u: Union[R, V]): Option[T[V]] =
+        m.project(u).map(Tag.unwrap)  
+    }
+  
 }
 
 
