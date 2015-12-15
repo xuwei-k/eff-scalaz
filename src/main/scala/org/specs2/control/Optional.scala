@@ -27,7 +27,7 @@ object Optional {
     val runImpure = new EffCont[Optional, R, Option[A]] {
       def apply[X](r: Optional[X])(continuation: X => Eff[R, Option[A]]): Eff[R, Option[A]] = r match {
         case Nothing()   => pure(None)
-        case Something(a) => continuation(a) >>= ((a: Option[A]) => EffMonad.point(a))
+        case Something(a) => continuation(a)
       }
     }
 
