@@ -32,17 +32,5 @@ object Checked {
 
     relay[R, Checked[E, ?], A, Either[E, A]](runPure, runImpure)(r)
   }
-
-  type CheckedStack[R <: Effects, E] = Checked[E, ?] <:: R
-
-  implicit def CheckedMember[R <: Effects, E]: Member[Checked[E, ?], Checked[E, ?] <:: R] = 
-    Member.MemberNatIsMember[Checked[E, ?], Checked[E, ?] <:: R, Zero](CheckedMemberNat, P[Zero])  
-
-  implicit def CheckedMemberNat[R <: Effects, E, A]: MemberNat[Checked[E, ?], Checked[E, ?] <:: R, Zero] =
-    ZeroMemberNat[Checked[E, ?], R]
-
-  implicit def CheckedMemberNatS[O[_], R <: Effects, N <: Nat, E, A](implicit m: MemberNat[Checked[E, ?], R, N]): MemberNat[Checked[E, ?], O <:: R, S[N]] =
-    SuccessorMemberNat[Checked[E, ?], O, R, N]
-
 }
 

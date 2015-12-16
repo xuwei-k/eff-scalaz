@@ -33,17 +33,5 @@ object Optional {
 
     relay[R, Optional, A, Option[A]](runPure, runImpure)(r)
   }
-
-  type OptionalStack[E <: Effects] = Optional[?] <:: E
-
-  implicit def OptionalMember[R <: Effects]: Member[Optional, Optional <:: R] = 
-    Member.MemberNatIsMember[Optional, Optional <:: R, Zero](OptionalMemberNat, P[Zero])  
-
-  implicit def OptionalMemberNat[R <: Effects, A]: MemberNat[Optional, Optional <:: R, Zero] =
-    ZeroMemberNat[Optional, R]
-
-  implicit def OptionalMemberNatS[O[_], R <: Effects, N <: Nat, A](implicit m: MemberNat[Optional, R, N]): MemberNat[Optional, O <:: R, S[N]] =
-    SuccessorMemberNat[Optional, O, R, N]
-
 }
 

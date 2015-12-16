@@ -2,7 +2,7 @@ package org.specs2
 package example
 
 import Action._
-import control.{Eval, Checked, Writer, Eff, Member}
+import control.{Eval, Checked, Eff, Member}
 import Eval._
 import Checked.runChecked
 import WarningsEff._
@@ -18,14 +18,15 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
    stop when there is an error         $stop
    display log messages                $logMessages
    collect warnings                    $collectWarnings
+   emit a warning then fail            $warningAndFail
 
 """
 
   def computeValues =
-    runWith(2, 3).map(_._1) must beRight(5)
+    runWith(2, 3)._1 must beRight(5)
 
   def stop =
-    runWith(20, 30) must_== Left("too big")
+    runWith(20, 30)._1 must_== Left("too big")
 
   def logMessages = {
     val messages = new scala.collection.mutable.ListBuffer[String]
@@ -35,19 +36,28 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
   }
 
   def collectWarnings =
-    runWith(2, 3).map(_._2) must beRight(Vector("the sum is big: 5"))
+    runWith(2, 3)._2 must be_==(Vector("the sum is big: 5"))
+
+  def warningAndFail = {
+    val action = for {
+      i <- eval(1)
+      _ <- Action.warnAndFail("hmm", "let's stop")
+    } yield i
+
+    runAction(action)._1 must beLeft
+  }
 
 
   /**
    * HELPERS
    */
 
-  def runWith(i: Int, j: Int, printer: String => Unit = s => ()): Either[String, (Int, Vector[String])] =
-    run(runEval(runChecked(runWarnings(runConsoleToPrinter(printer)(actions(i, j))))))
+  def runWith(i: Int, j: Int, printer: String => Unit = s => ()): (Either[String, Int], Vector[String]) =
+    runAction(actions(i, j), printer)
 
   /** specifying the stack is enough to run it */
-  def runWithUnbound(i: Int, j: Int, printer: String => Unit = s => ()): Either[String, (Int, Vector[String])] =
-    run(runEval(runChecked(runWarnings(runConsoleToPrinter(printer)(unboundActions[ActionStack](i, j))))))
+  def runWithUnbound(i: Int, j: Int, printer: String => Unit = s => ()): (Either[String, Int], Vector[String]) =
+    runAction(unboundActions[ActionStack](i, j), printer)
 
   /**
    * ActionStack actions: no annotation is necessary here

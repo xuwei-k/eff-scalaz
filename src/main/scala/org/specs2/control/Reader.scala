@@ -35,19 +35,4 @@ object Reader {
     relay1[R, Reader[A, ?], B, B]((b: B) => b)(readRest)(r)
   }
 
-  type ReaderStack[A, E <: Effects] = Reader[A, ?] <:: E
-
-  implicit def ReaderMember[R <: Effects, A]: Member[Reader[A, ?], Reader[A, ?] <:: R] = 
-    Member.MemberNatIsMember[Reader[A, ?], Reader[A, ?] <:: R, Zero]  
-
-  implicit def ReaderMemberNat[R <: Effects, A]: MemberNat[Reader[A, ?], Reader[A, ?] <:: R, Zero] =
-    ZeroMemberNat[Reader[A, ?], R]
-
-  implicit def ReaderMemberNatS[O[_], R <: Effects, N <: Nat, A](implicit m: MemberNat[Reader[A, ?], R, N]): MemberNat[Reader[A, ?], O <:: R, S[N]] =
-    SuccessorMemberNat[Reader[A, ?], O, R, N]
-
-  implicit def ReaderMemberNatSWriter[R <: Effects, N <: Nat, A, B](implicit m: MemberNat[Reader[A, ?], R, N]): MemberNat[Reader[A, ?], Writer[B, ?] <:: R, S[N]] =
-    ReaderMemberNatS[Writer[B, ?], R, N, A]
-
-
 }

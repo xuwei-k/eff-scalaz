@@ -10,8 +10,8 @@ import Member._
 sealed trait Writer[O, X]
 
 case class Put[O](private val run: () => O) extends Writer[O, Unit] {
-  def value: O = 
-    run()   
+  def value: O =
+    run()
 }
 
 object Writer {
@@ -40,18 +40,4 @@ object Writer {
     relay1[R, Writer[O, ?], A, (A, List[O])]((a: A) => (a, List[O]()))(putRest)(w)
   }
 
-  type WriterStack[O, E <: Effects] = Writer[O, ?] <:: E
-
-  implicit def WriterMember[R <: Effects, A]: Member[Writer[A, ?], Writer[A, ?] <:: R] = 
-    Member.MemberNatIsMember[Writer[A, ?], Writer[A, ?] <:: R, Zero]  
-
-  implicit def WriterMemberNat[R <: Effects, A]: MemberNat[Writer[A, ?], Writer[A, ?] <:: R, Zero] =
-    ZeroMemberNat[Writer[A, ?], R]
-
-  implicit def WriterMemberNatS[O[_], R <: Effects, N <: Nat, A](implicit m: MemberNat[Writer[A, ?], R, N]): MemberNat[Writer[A, ?], O <:: R, S[N]] =
-    SuccessorMemberNat[Writer[A, ?], O, R, N]
-
-  implicit def WriterMemberNatSReader[R <: Effects, N <: Nat, A, B](implicit m: MemberNat[Writer[A, ?], R, N]): MemberNat[Writer[A, ?], Reader[B, ?] <:: R, S[N]] =
-    WriterMemberNatS[Reader[B, ?], R, N, A]
-
-}
+  }
