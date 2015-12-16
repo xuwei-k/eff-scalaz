@@ -2,11 +2,12 @@ package org.specs2
 package example
 
 import Action._
-import control.{Eval, Checked, Eff, Member}
+import control.{Eval, Checked, Eff, Member, CheckedErrorEff}
 import Eval._
 import Checked.runChecked
 import WarningsEff._
 import ConsoleEff._
+import CheckedErrorEff._
 import Eff._
 import Member.{<=}
 import scalaz.{Writer => _, Reader => _,_}, Scalaz._, effect.IO
@@ -26,7 +27,7 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
     runWith(2, 3)._1 must beRight(5)
 
   def stop =
-    runWith(20, 30)._1 must_== Left("too big")
+    runWith(20, 30)._1 must_== Left(\/-("too big"))
 
   def logMessages = {
     val messages = new scala.collection.mutable.ListBuffer[String]
@@ -40,7 +41,7 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
 
   def warningAndFail = {
     val action = for {
-      i <- eval(1)
+      i <- delay(1)
       _ <- Action.warnAndFail("hmm", "let's stop")
     } yield i
 
@@ -52,11 +53,11 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
    * HELPERS
    */
 
-  def runWith(i: Int, j: Int, printer: String => Unit = s => ()): (Either[String, Int], Vector[String]) =
+  def runWith(i: Int, j: Int, printer: String => Unit = s => ()): (Either[Error, Int], Vector[String]) =
     runAction(actions(i, j), printer)
 
   /** specifying the stack is enough to run it */
-  def runWithUnbound(i: Int, j: Int, printer: String => Unit = s => ()): (Either[String, Int], Vector[String]) =
+  def runWithUnbound(i: Int, j: Int, printer: String => Unit = s => ()): (Either[Error, Int], Vector[String]) =
     runAction(unboundActions[ActionStack](i, j), printer)
 
   /**
@@ -67,7 +68,7 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
     _ <- log("got the value "+x)
     y <- evalIO(IO(j))
     _ <- log("got the value "+y)
-    s <- if (x + y > 10) Checked.ko("too big") else Checked.ok(x + y)
+    s <- if (x + y > 10) fail("too big") else Checked.ok(x + y)
     _ <- if (s >= 5) warn("the sum is big: "+s) else Eff.unit[ActionStack]
   } yield s
 
@@ -79,13 +80,13 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
     implicit m1: Eval <= R,
              m2: Console <= R,
              m3: Warnings <= R,
-             m4: CheckedString <= R
+             m4: CheckedError <= R
   ): Eff[R, Int] = for {
     x <- evalIO[R, Int](IO(i))
     _ <- log[R]("got the value "+x)
     y <- evalIO[R, Int](IO(j))
     _ <- log[R]("got the value "+y)
-    s <- if (x + y > 10) Checked.ko[R, String, Int]("too big") else Checked.ok[R, String, Int](x + y)
+    s <- if (x + y > 10) fail[R, Int]("too big") else Checked.ok[R, Error, Int](x + y)
     _ <- if (s >= 5) warn[R]("the sum is big: "+s) else Eff.unit[R]
   } yield s
 
