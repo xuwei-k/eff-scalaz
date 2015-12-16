@@ -66,9 +66,9 @@ object MemberNat {
    * prj' _ _        = Nothing
    *
    * Injection and projection for rank 0
-   * 
+   *
    * The idea is that:
-   * 
+   *
    *  - if T is an effect
    *  - then it is the first effect of T <:: R
    */
@@ -97,10 +97,10 @@ object MemberNat {
    * t' == O
    *
    * The idea is that:
-   * 
+   *
    *  - if T is one effect of R for a given N
    *  - then T is one effect of O <:: R for S[N]
-   * 
+   *
    */
   def SuccessorMemberNat[T[_], O[_], R <: Effects, N <: Nat](implicit m: MemberNat[T, R, N]): MemberNat[T, O <:: R, S[N]] = new MemberNat[T, O <:: R, S[N]] {
     def inject[V](predicate: P[S[N]], effect: T[V]) =
@@ -162,17 +162,19 @@ object Member {
       case UnionNow(tv) => tv.right
       case UnionNext(union) => union.left
     }
-    
-    
-  def untagMember[T[_], R, TT](m: Member[({type X[A]=T[A] @@ TT})#X, R]): Member[T, R] = 
+
+
+  def untagMember[T[_], R, TT](m: Member[({type X[A]=T[A] @@ TT})#X, R]): Member[T, R] =
     new Member[T, R] {
       def inject[V](tv: T[V]): Union[R, V] =
         m.inject(Tag(tv))
-          
+
       def project[V](u: Union[R, V]): Option[T[V]] =
-        m.project(u).map(Tag.unwrap)  
+        m.project(u).map(Tag.unwrap)
     }
-  
+
+  type <=[M[_], R] = Member[M, R]
+
 }
 
 
