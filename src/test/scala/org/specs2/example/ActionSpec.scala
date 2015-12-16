@@ -8,7 +8,7 @@ import Checked.runChecked
 import WarningsEff._
 import ConsoleEff._
 import Eff._
-import Member._
+import Member.{<=}
 import scalaz.{Writer => _, Reader => _,_}, Scalaz._, effect.IO
 
 class ActionSpec extends Specification with ScalaCheck { def is = s2"""
@@ -44,6 +44,10 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
 
   def runWith(i: Int, j: Int, printer: String => Unit = s => ()): Either[String, (Int, Vector[String])] =
     run(runEval(runChecked(runWarnings(runConsoleToPrinter(printer)(actions(i, j))))))
+
+  /** specifying the stack is enough to run it */
+  def runWithUnbound(i: Int, j: Int, printer: String => Unit = s => ()): Either[String, (Int, Vector[String])] =
+    run(runEval(runChecked(runWarnings(runConsoleToPrinter(printer)(unboundActions[ActionStack](i, j))))))
 
   /**
    * ActionStack actions: no annotation is necessary here

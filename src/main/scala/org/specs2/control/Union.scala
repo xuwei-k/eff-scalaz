@@ -72,7 +72,7 @@ object MemberNat {
    *  - if T is an effect
    *  - then it is the first effect of T <:: R
    */
-  def ZeroMemberNat[T[_], R <: Effects]: MemberNat[T, T <:: R, Zero] = new MemberNat[T, T <:: R, Zero] {
+  implicit def ZeroMemberNat[T[_], R <: Effects]: MemberNat[T, T <:: R, Zero] = new MemberNat[T, T <:: R, Zero] {
     def inject[V](rank: P[Zero], effect: T[V]): Union[T <:: R, V] =
       Union.now(effect)
 
@@ -102,7 +102,7 @@ object MemberNat {
    *  - then T is one effect of O <:: R for S[N]
    *
    */
-  def SuccessorMemberNat[T[_], O[_], R <: Effects, N <: Nat](implicit m: MemberNat[T, R, N]): MemberNat[T, O <:: R, S[N]] = new MemberNat[T, O <:: R, S[N]] {
+  implicit def SuccessorMemberNat[T[_], O[_], R <: Effects, N <: Nat](implicit m: MemberNat[T, R, N]): MemberNat[T, O <:: R, S[N]] = new MemberNat[T, O <:: R, S[N]] {
     def inject[V](predicate: P[S[N]], effect: T[V]) =
       Union.next(m.inject[V](P[N](), effect))
 
