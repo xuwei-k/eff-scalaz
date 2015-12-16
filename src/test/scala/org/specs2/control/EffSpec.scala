@@ -6,9 +6,13 @@ import Effects._
 import Reader._
 import Writer._
 import com.ambiata.disorder.PositiveIntSmall
+import org.scalacheck._, Arbitrary._
 import scalaz._, Scalaz._
+import scalacheck.ScalazProperties._, scalacheck.ScalazArbitrary._, scalacheck.ScalaCheckBinding._
 
 class EffSpec extends Specification with ScalaCheck { def is = s2"""
+
+ The Eff monad respects the laws            $laws
 
  run the reader monad with a pure operation $readerMonadPure
  run the reader monad with a bind operation $readerMonadBind
@@ -17,6 +21,8 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
  run a reader/writer action $readerWriter
 
 """
+
+  def laws = monad.laws[F]
 
   def readerMonadPure = prop { (initial: Int) =>
     type R[A] = Reader[Int, A]
@@ -87,5 +93,25 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     run(runReader(initial)(runWriter(readWrite))) must_==
       (initial * 2, List("initial="+initial, "result="+(initial*2)))
   }
+
+  /**
+   * Helpers
+   */
+   type F[A] = Eff[EffectsNil, A]
+
+   implicit def EffEqual[A]: Equal[F[A]] = new Equal[F[A]] {
+     def equal(a1: F[A], a2: F[A]): Boolean =
+       run(a1) == run(a2)
+   }
+
+   implicit def ArbitraryEff: Arbitrary[F[Int]] = Arbitrary[F[Int]] {
+     Gen.oneOf(
+       Gen.choose(0, 100).map(i => EffMonad[EffectsNil].point(i)),
+       Gen.choose(0, 100).map(i => EffMonad[EffectsNil].point(i).map(_ + 10))
+     )
+   }
+
+   implicit def ArbitraryEffFunction: Arbitrary[F[Int => Int]] =
+     Arbitrary(arbitrary[Int => Int].map(f => EffMonad[EffectsNil].point(f)))
 
 }

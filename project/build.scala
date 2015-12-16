@@ -16,10 +16,10 @@ object build extends Build {
 
   lazy val dependencies: Seq[Settings] =
     Seq[Settings](libraryDependencies ++=
-        depend.scalaz   ++
-        depend.specs2   ++
-        depend.disorder
-        )
+      depend.scalaz     ++
+      depend.specs2     ++
+      depend.disorder
+    )
 
   lazy val projectSettings: Seq[Settings] = Seq(
     name := "eff",

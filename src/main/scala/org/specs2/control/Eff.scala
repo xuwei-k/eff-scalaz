@@ -42,9 +42,9 @@ object Eff {
   def send[T[_], R, V](tv: T[V])(implicit member: Member[T, R]): Eff[R, V] =
     impure(member.inject(tv), Arrs.singleton((v: V) => EffMonad[R].point(v)))
 
-  def unit[R]: Eff[R, Unit] = 
+  def unit[R]: Eff[R, Unit] =
     EffMonad.point(())
-    
+
   def pure[R, A](run: A): Eff[R, A] =
     Pure(() => run)
 
@@ -80,16 +80,16 @@ object Eff {
           case -\/(u)  => impure(u.asInstanceOf[Union[R, Any]], Arrs.singleton((x: Any) => relay(ret, cont)(continuation.apply(x))))
         }
     }
-    
+
   def relay1[R <: Effects, M[_], A, B](ret: A => B)(cont: EffCont[M, R, B])(e: Eff[M <:: R, A]): Eff[R, B] =
     relay((a: A) => EffMonad[R].point(ret(a)), cont)(e)
-  
+
   /**
    * qComp :: Arrs r a b → (Eff r b → Eff r’ c) → Arr r’ a c
    * qComp g h = h ◦ qApp g
    */
-  private def qComp[R1, R2, A, B, C](arrs: Arrs[R1, A, B], f: Eff[R1, B] => Eff[R2, C]): Arr[R2, A, C] = 
-    (a: A) => f(arrs(a))   
+  private def qComp[R1, R2, A, B, C](arrs: Arrs[R1, A, B], f: Eff[R1, B] => Eff[R2, C]): Arr[R2, A, C] =
+    (a: A) => f(arrs(a))
 }
 
 case class Arrs[R, A, B] private(functions: Vector[Any => Eff[R, Any]]) {
@@ -107,12 +107,12 @@ case class Arrs[R, A, B] private(functions: Vector[Any => Eff[R, Any]]) {
    */
   def apply(a: A): Eff[R, B] =
     functions match {
-      case Vector(f) => f(a).asInstanceOf[Eff[R, B]]  
-      case f +: rest => 
+      case Vector(f) => f(a).asInstanceOf[Eff[R, B]]
+      case f +: rest =>
         f(a) match {
-          case p: Pure[_,_] => Arrs(rest)(p.value)  
+          case p: Pure[_,_] => Arrs(rest)(p.value)
           case Impure(u, q) => Impure[R, B](u, q.copy(functions = q.functions ++ rest))
-        }  
+        }
     }
 }
 
