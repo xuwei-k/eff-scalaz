@@ -75,7 +75,7 @@ object Eff {
       case Pure(a) => ret(a())
       case Impure(union, continuation) =>
         decompose[M, R, Any](union.asInstanceOf[Union[M <:: R, Any]]) match {
-          case \/-(mx) => cont.apply(mx)(qComp(continuation, relay(ret, cont)))
+          case \/-(mx) => cont(mx)(qComp(continuation, relay(ret, cont)))
           case -\/(u)  => impure(u.asInstanceOf[Union[R, Any]], Arrs.singleton((x: Any) => relay(ret, cont)(continuation.apply(x))))
         }
     }

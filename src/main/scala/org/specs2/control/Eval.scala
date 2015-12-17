@@ -81,15 +81,15 @@ object Eval {
    */
   def orElse[R, A](action1: Eff[R, A], action2: Eff[R, A])(implicit m: Eval <= R): Eff[R, A] =
     (action1, action2) match {
-      case (Pure(p1), Pure(p2))    => action1
-      case (Pure(_), Impure(u, c)) => action1
-      case (Impure(u1, c1), _)     =>
+      case (Pure(p1), _) =>
+        try Eval.now(p1())
+        catch { case _ : Throwable => action2 }
+
+      case (Impure(u1, c1), _) =>
         m.project(u1) match {
           case Some(e1) =>
-            Eval.delay {
-              try now(e1.value.asInstanceOf[A])
-              catch { case _: Throwable => action2 }
-            }.flatMap(identity _)
+            try c1(e1.value.asInstanceOf[A])
+            catch { case _: Throwable => action2 }
 
           case None => action1
         }

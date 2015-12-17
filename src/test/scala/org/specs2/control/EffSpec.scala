@@ -5,6 +5,7 @@ import Eff._
 import Effects._
 import Reader._
 import Writer._
+import Eval.runEval
 import com.ambiata.disorder.PositiveIntSmall
 import org.scalacheck._, Arbitrary._
 import scalaz._, Scalaz._
@@ -19,6 +20,8 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
  run the writer monad twice                 $writerTwice
 
  run a reader/writer action $readerWriter
+
+ The Eff monad is stack safe $stackSafe
 
 """
 
@@ -93,6 +96,15 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     run(runReader(initial)(runWriter(readWrite))) must_==
       ((initial * 2, List("initial="+initial, "result="+(initial*2))))
   }
+
+  def stackSafe = {
+    type E = Eval <:: EffectsNil
+
+    val list = (1 to 5000).toList
+    val action = list.traverseU(i => Eval.delay[E, Int](i))
+
+    run(runEval(action)) ==== list
+  }.pendingUntilFixed
 
   /**
    * Helpers
