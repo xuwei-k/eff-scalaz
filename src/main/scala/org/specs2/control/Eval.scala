@@ -61,7 +61,7 @@ object Eval {
       case (Impure(u1, c1), Impure(u2, c2)) =>
         (m.project(u1), m.project(u2)) match {
           case (Some(e1), Some(e2)) =>
-            Eval.delay { try e1.value.asInstanceOf[A] finally e2.value }
+            Eval.delay { try e1.value.asInstanceOf[A] finally { e2.value; () } }
 
           case _ => action
         }

@@ -1,11 +1,7 @@
 package org.specs2.control
 
 
-import scalaz._, Scalaz._
 import Eff._
-import Member._
-import MemberNat._
-import Optional._
 import Effects._
 
 sealed trait Optional[A]

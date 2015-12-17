@@ -1,7 +1,5 @@
 package org.specs2.control
 
-import org.specs2.control.MemberNat._
-
 import scalaz._, Scalaz._
 import Eff._
 import Effects._

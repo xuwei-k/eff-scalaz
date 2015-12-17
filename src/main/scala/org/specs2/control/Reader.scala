@@ -1,12 +1,7 @@
 package org.specs2.control
 
-import org.specs2.control.MemberNat._
-
-import scalaz._, Scalaz._
 import Eff._
-import Member._
-import Reader._
-import Effects._
+  import Effects._
 
 sealed trait Reader[I, X]
 

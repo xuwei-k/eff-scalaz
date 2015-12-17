@@ -8,7 +8,7 @@ import Writer._
 import com.ambiata.disorder.PositiveIntSmall
 import org.scalacheck._, Arbitrary._
 import scalaz._, Scalaz._
-import scalacheck.ScalazProperties._, scalacheck.ScalazArbitrary._, scalacheck.ScalaCheckBinding._
+import scalacheck.ScalazProperties._
 
 class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
@@ -63,7 +63,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
         _ <- tell[S, String]("world")
       } yield ()
 
-    run(runWriter(write)) === ((), List("hello", "world"))
+    run(runWriter(write)) ==== (((), List("hello", "world")))
   }
 
   def readerWriter = prop { init: PositiveIntSmall =>
@@ -91,7 +91,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     // run effects
     val initial = init.value
     run(runReader(initial)(runWriter(readWrite))) must_==
-      (initial * 2, List("initial="+initial, "result="+(initial*2)))
+      ((initial * 2, List("initial="+initial, "result="+(initial*2))))
   }
 
   /**

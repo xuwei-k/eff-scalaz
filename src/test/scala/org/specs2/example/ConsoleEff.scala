@@ -3,7 +3,6 @@ package org.specs2.example
 import org.specs2.control.{Effects, Eff, Member, Writer, Put}
 import Effects._
 import Eff._
-import Writer._
 import scalaz.{Reader => _, Writer => _, _}, Scalaz._
 
 object ConsoleEff {
@@ -11,9 +10,6 @@ object ConsoleEff {
   trait ConsoleTag
 
   type Console[A] = Writer[String, A] @@ ConsoleTag
-
-
-
 
   def log[R](message: String, doIt: Boolean = true)(implicit m: Member[Console, R]): Eff[R, Unit] =
     if (doIt) Writer.tell(message)(Member.untagMember[Writer[String, ?], R, ConsoleTag](m))

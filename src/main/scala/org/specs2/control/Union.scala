@@ -2,7 +2,6 @@ package org.specs2.control
 
 import scalaz._, Scalaz._
 import Effects._
-import MemberNat._
 
 /**
  * Union of type-level effects + one request
