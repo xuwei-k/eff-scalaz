@@ -51,9 +51,16 @@ object Eval {
   implicit class AndFinally[R, A](action: Eff[R, A]) {
     def andFinally(last: Eff[R, Unit])(implicit m: Eval <= R): Eff[R, A] =
       Eval.andFinally(action, last)
+
+    def orElse(action2: Eff[R, A])(implicit m: Eval <= R): Eff[R, A] =
+      Eval.orElse(action, action2)
   }
 
-  /** evaluate 2 actions possibly having eval effects */
+  /**
+   * evaluate 2 actions possibly having eval effects
+   *
+   * The second action must be executed whether the first is successful or not
+   */
   def andFinally[R, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: Eval <= R): Eff[R, A] =
     (action, last) match {
       case (_, Pure(l))                     => action
@@ -67,5 +74,25 @@ object Eval {
         }
     }
 
+  /**
+   * evaluate 2 actions possibly having eval effects
+   *
+   * The second action must be executed if the first one is not successful
+   */
+  def orElse[R, A](action1: Eff[R, A], action2: Eff[R, A])(implicit m: Eval <= R): Eff[R, A] =
+    (action1, action2) match {
+      case (Pure(p1), Pure(p2))    => action1
+      case (Pure(_), Impure(u, c)) => action1
+      case (Impure(u1, c1), _)     =>
+        m.project(u1) match {
+          case Some(e1) =>
+            Eval.delay {
+              try now(e1.value.asInstanceOf[A])
+              catch { case _: Throwable => action2 }
+            }.flatMap(identity _)
+
+          case None => action1
+        }
+    }
 }
 
