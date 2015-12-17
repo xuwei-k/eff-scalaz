@@ -36,8 +36,8 @@ object P {
   implicit def ZeroPredicate: P[Zero] =
     P[Zero]
 
-  implicit def SuccPredicate[N <: Nat](implicit prev: P[N]): P[S[N]] =
-    P[S[N]]
+  implicit def SuccPredicate[N <: Nat](implicit prev: P[N]): P[Succ[N]] =
+    P[Succ[N]]
 }
 
 /**
@@ -101,11 +101,11 @@ object MemberNat {
    *  - then T is one effect of O <:: R for S[N]
    *
    */
-  implicit def SuccessorMemberNat[T[_], O[_], R <: Effects, N <: Nat](implicit m: MemberNat[T, R, N]): MemberNat[T, O <:: R, S[N]] = new MemberNat[T, O <:: R, S[N]] {
-    def inject[V](predicate: P[S[N]], effect: T[V]) =
+  implicit def SuccessorMemberNat[T[_], O[_], R <: Effects, N <: Nat](implicit m: MemberNat[T, R, N]): MemberNat[T, O <:: R, Succ[N]] = new MemberNat[T, O <:: R, Succ[N]] {
+    def inject[V](predicate: P[Succ[N]], effect: T[V]) =
       Union.next(m.inject[V](P[N](), effect))
 
-    def project[V](predicate: P[S[N]], union: Union[O <:: R, V]) =
+    def project[V](predicate: P[Succ[N]], union: Union[O <:: R, V]) =
       union match {
         case UnionNow(_) => None
         case UnionNext(u) => m.project[V](P[N](), u)
@@ -184,4 +184,4 @@ sealed trait Nat
 
 trait Zero extends Nat
 
-trait S[N <: Nat] extends Nat
+trait Succ[N <: Nat] extends Nat

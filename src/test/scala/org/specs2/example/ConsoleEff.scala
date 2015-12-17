@@ -45,6 +45,4 @@ object ConsoleEff {
     relay1((a: A) => a)(putRest)
   }
 
-
-
 }
