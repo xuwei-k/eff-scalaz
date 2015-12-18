@@ -36,7 +36,7 @@ object ConsoleEff {
    * This interpreter prints messages to a printing function
    */
   def runConsoleToPrinter[R <: Effects, A](printer: String => Unit): Eff[Console <:: R, A] => Eff[R, A] = {
-    val putRest = new EffCont[Console, R, A] {
+    val putRest = new EffBind[Console, R, A] {
       def apply[X](w: Console[X])(continuation: X => Eff[R, A]): Eff[R, A] = Tag.unwrap(w) match {
         case Put(m) => printer(m()); continuation(())
       }

@@ -19,14 +19,14 @@ object Checked {
     impure(member.inject(CheckedOk[E, A](a)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
 
   def runChecked[R <: Effects, E, A](r: Eff[Checked[E, ?] <:: R, A]): Eff[R, Either[E, A]] = {
-    val runImpure = new EffCont[Checked[E, ?], R, Either[E, A]] {
+    val bind = new EffBind[Checked[E, ?], R, Either[E, A]] {
       def apply[X](r: Checked[E, X])(continuation: X => Eff[R, Either[E, A]]): Eff[R, Either[E, A]] = r match {
         case CheckedKo(e) => pure(Left[E, A](e): Either[E, A])
         case CheckedOk(a) => continuation(a)
       }
     }
 
-    relay1[R, Checked[E, ?], A, Either[E, A]]((a: A) => Right(a): Either[E, A])(runImpure)(r)
+    relay1[R, Checked[E, ?], A, Either[E, A]]((a: A) => Right(a): Either[E, A])(bind)(r)
   }
 }
 

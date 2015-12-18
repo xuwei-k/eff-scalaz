@@ -30,22 +30,22 @@ object Eval {
     delay(a.unsafePerformIO)
 
   def runEval[R <: Effects, A](r: Eff[Eval[?] <:: R, A]): Eff[R, A] = {
-    val runImpure = new EffCont[Eval, R, A] {
+    val bind = new EffBind[Eval, R, A] {
       def apply[X](r: Eval[X])(continuation: X => Eff[R, A]): Eff[R, A] =
         continuation(r.value)
     }
 
-    relay1[R, Eval, A, A]((a: A) => a)(runImpure)(r)
+    relay1[R, Eval, A, A]((a: A) => a)(bind)(r)
   }
 
   def attemptEval[R <: Effects, A](r: Eff[Eval[?] <:: R, A]): Eff[R, Throwable \/ A] = {
-    val runImpure = new EffCont[Eval, R, Throwable \/ A] {
+    val bind = new EffBind[Eval, R, Throwable \/ A] {
       def apply[X](r: Eval[X])(continuation: X => Eff[R, Throwable \/ A]): Eff[R, Throwable \/ A] =
         try { continuation(r.value) }
         catch { case NonFatal(t) => Eff.pure(-\/(t)) }
     }
 
-    relay1[R, Eval, A, Throwable \/ A]((a: A) => \/-(a))(runImpure)(r)
+    relay1[R, Eval, A, Throwable \/ A]((a: A) => \/-(a))(bind)(r)
   }
 
   implicit class AndFinally[R, A](action: Eff[R, A]) {

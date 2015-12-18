@@ -21,7 +21,7 @@ object Reader {
     }
 
   def runReader[R <: Effects, A, B](initial: A)(r: Eff[Reader[A, ?] <:: R, B]): Eff[R, B] = {
-    val readRest = new EffCont[Reader[A, ?], R, B] {
+    val readRest = new EffBind[Reader[A, ?], R, B] {
       def apply[X](r: Reader[A, X])(continuation: X => Eff[R, B]): Eff[R, B] = r match {
         case Get() => continuation(initial.asInstanceOf[X])
       }

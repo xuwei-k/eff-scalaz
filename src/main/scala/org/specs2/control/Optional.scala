@@ -18,14 +18,14 @@ object Optional {
     impure(member.inject(Something[A](a)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
 
   def runOptional[R <: Effects, A](r: Eff[Optional[?] <:: R, A]): Eff[R, Option[A]] = {
-    val runImpure = new EffCont[Optional, R, Option[A]] {
+    val bind = new EffBind[Optional, R, Option[A]] {
       def apply[X](r: Optional[X])(continuation: X => Eff[R, Option[A]]): Eff[R, Option[A]] = r match {
         case Nothing()   => pure(None)
         case Something(a) => continuation(a)
       }
     }
 
-    relay1[R, Optional, A, Option[A]]((a: A) => Option(a))(runImpure)(r)
+    relay1[R, Optional, A, Option[A]]((a: A) => Option(a))(bind)(r)
   }
 }
 

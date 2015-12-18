@@ -104,7 +104,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     val action = list.traverseU(i => Eval.delay[E, Int](i))
 
     run(runEval(action)) ==== list
-  }.pendingUntilFixed
+  } //.pendingUntilFixed
 
   /**
    * Helpers
