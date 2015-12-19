@@ -1,6 +1,6 @@
 package org.specs2.control
 
-import scalaz._
+import scalaz._, Scalaz._
 import Eff._
 import Member._
 import Effects._
@@ -18,17 +18,20 @@ object Checked {
   def ok[R, E, A](a: A)(implicit member: Member[Checked[E, ?], R]): Eff[R, A] =
     impure(member.inject(CheckedOk[E, A](a)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
 
-  def runChecked[R <: Effects, E, A](r: Eff[Checked[E, ?] <:: R, A]): Eff[R, Either[E, A]] = {
-    val bind = new Binder[Checked[E, ?], R, Either[E, A]] {
+  def runChecked[R <: Effects, E, A](r: Eff[Checked[E, ?] <:: R, A]): Eff[R, E \/ A] = {
+    val bind = new Binder[Checked[E, ?], R, E \/ A] {
       def apply[X](m: Checked[E, X]) =
         m match {
-          case CheckedKo(e) => \/-(EffMonad[R].point(Left(e): Either[E, A]))
+          case CheckedKo(e) => \/-(EffMonad[R].point(-\/(e): E \/ A))
           case CheckedOk(a) => -\/(a)
         }
     }
 
-    interpretLoop1[R, Checked[E, ?], A, Either[E, A]]((a: A) => Right(a))(bind)(r)
+    interpretLoop1[R, Checked[E, ?], A, E \/ A]((a: A) => \/-(a))(bind)(r)
   }
+
+  def runCheckedEither[R <: Effects, E, A](r: Eff[Checked[E, ?] <:: R, A]): Eff[R, Either[E, A]] =
+    runChecked(r).map(_.fold(Left.apply, Right.apply))
 
 }
 

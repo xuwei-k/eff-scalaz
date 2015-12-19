@@ -33,7 +33,7 @@ class CheckedSpec extends Specification with ScalaCheck { def is = s2"""
         j <- Checked.ok[S, String, Int](2)
       } yield i + j
 
-    run(runChecked(checked)) === Right(3)
+    run(runChecked(checked)) === \/-(3)
   }
 
   def checkedWithKoMonad = {
@@ -48,7 +48,7 @@ class CheckedSpec extends Specification with ScalaCheck { def is = s2"""
         j <- Checked.ko[S, String, Int]("error!")
       } yield i + j
 
-    run(runChecked(checked)) === Left("error!")
+    run(runChecked(checked)) === -\/("error!")
   }
 
   def checkedReader = prop { (init: PositiveLongSmall, someValue: PositiveIntSmall) =>
@@ -74,7 +74,7 @@ class CheckedSpec extends Specification with ScalaCheck { def is = s2"""
     val initial = init.value
 
     run(runReader(initial)(runChecked(readChecked))) must_==
-      Right(initial.toInt + someValue.value)
+      \/-(initial.toInt + someValue.value)
   }
 
   type CheckedString[A] = Checked[String, A]
@@ -87,7 +87,7 @@ class CheckedSpec extends Specification with ScalaCheck { def is = s2"""
     val list = (1 to 5000).toList
     val action = list.traverseU(i => Checked.ok(i.toString))
 
-    run(Checked.runChecked(action)) ==== Right(list.map(_.toString))
+    run(Checked.runChecked(action)) ==== \/-(list.map(_.toString))
   }
 
 }

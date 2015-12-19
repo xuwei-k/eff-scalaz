@@ -94,6 +94,6 @@ class EvalSpec extends Specification { def is = s2"""
     val list = (1 to 5000).toList
     val action = list.traverseU(i => Eval.delay[E, Int](i))
 
-    run(attemptEval(action)) ==== \/-(list) 
+    run(attemptEval(action)) ==== \/-(list)
   }
 }

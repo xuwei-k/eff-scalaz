@@ -62,7 +62,7 @@ object Action {
     warn(message)(m1) >>
     fail(failureMessage)
 
-  def runAction[A](action: Eff[ActionStack, A], printer: String => Unit = s => ()): (Either[Error, A], Vector[String]) =
+  def runAction[A](action: Eff[ActionStack, A], printer: String => Unit = s => ()): (Error \/ A, Vector[String]) =
     run(runEval(runWarnings(runConsoleToPrinter(printer)(runChecked(action)))))
 
 

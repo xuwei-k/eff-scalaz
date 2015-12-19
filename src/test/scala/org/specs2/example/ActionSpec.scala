@@ -10,9 +10,10 @@ import ConsoleEff._
 import CheckedErrorEff._
 import Eff._
 import Member.{<=}
+import org.specs2.matcher.DisjunctionMatchers
 import scalaz.{Writer => _, Reader => _,_}, Scalaz._, effect.IO
 
-class ActionSpec extends Specification with ScalaCheck { def is = s2"""
+class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers { def is = s2"""
 
  The action stack can be used to
    compute values                      $computeValues
@@ -24,7 +25,7 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
 """
 
   def computeValues =
-    runWith(2, 3)._1 must beRight(5)
+    runWith(2, 3)._1 must be_\/-(5)
 
   def stop =
     runWith(20, 30)._1 must_== Left(\/-("too big"))
@@ -45,7 +46,7 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
       _ <- Action.warnAndFail("hmm", "let's stop")
     } yield i
 
-    runAction(action)._1 must beLeft
+    runAction(action)._1 must be_-\/
   }
 
 
@@ -53,11 +54,11 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
    * HELPERS
    */
 
-  def runWith(i: Int, j: Int, printer: String => Unit = s => ()): (Either[Error, Int], Vector[String]) =
+  def runWith(i: Int, j: Int, printer: String => Unit = s => ()): (Error \/ Int, Vector[String]) =
     runAction(actions(i, j), printer)
 
   /** specifying the stack is enough to run it */
-  def runWithUnbound(i: Int, j: Int, printer: String => Unit = s => ()): (Either[Error, Int], Vector[String]) =
+  def runWithUnbound(i: Int, j: Int, printer: String => Unit = s => ()): (Error \/ Int, Vector[String]) =
     runAction(unboundActions[ActionStack](i, j), printer)
 
   /**
