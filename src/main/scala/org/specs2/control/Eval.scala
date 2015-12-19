@@ -30,32 +30,21 @@ object Eval {
     delay(a.unsafePerformIO)
 
   def runEval[R <: Effects, A](r: Eff[Eval[?] <:: R, A]): Eff[R, A] = {
-    def loop(eff: Eff[Eval <:: R, A]): Eff[R, A] = {
-      if (eff.isInstanceOf[Pure[Eval <:: R, A]])
-         EffMonad[R].point(eff.asInstanceOf[Pure[Eval <:: R, A]].value)
-      else {
-        val i = eff.asInstanceOf[Impure[Eval <:: R, A]]
-        val d = decompose[Eval, R, A](i.union.asInstanceOf[Union[Eval <:: R, A]])
-        if (d.toOption.isDefined)
-          loop(i.continuation(d.toOption.get.asInstanceOf[Eval[A]].value))
-        else {
-          val u = d.toEither.left.toOption.get
-          Impure[R, A](u.asInstanceOf[Union[R, Any]], Arrs.singleton(x => loop(i.continuation(x))))
-        }
-      }
+    val bind = new Binder[Eval, R, A] {
+      def apply[X](m: Eval[X]) = -\/(m.value)
     }
 
-    loop(r)
+    interpretLoop1((a: A) => a)(bind)(r)
   }
 
   def attemptEval[R <: Effects, A](r: Eff[Eval[?] <:: R, A]): Eff[R, Throwable \/ A] = {
-    val bind = new EffBind[Eval, R, Throwable \/ A] {
-      def apply[X](r: Eval[X])(continuation: X => Eff[R, Throwable \/ A]): Eff[R, Throwable \/ A] =
-        try { continuation(r.value) }
-        catch { case NonFatal(t) => Eff.pure(-\/(t)) }
+    val bind = new Binder[Eval, R, Throwable \/ A] {
+      def apply[X](m: Eval[X]) =
+        try { -\/(m.value) }
+        catch { case NonFatal(t) => \/-(Eff.pure(-\/(t))) }
     }
 
-    interpret1[R, Eval, A, Throwable \/ A]((a: A) => \/-(a))(bind)(r)
+    interpretLoop1((a: A) => \/-(a): Throwable \/ A)(bind)(r)
   }
 
   implicit class AndFinally[R, A](action: Eff[R, A]) {

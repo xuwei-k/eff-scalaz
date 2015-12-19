@@ -21,7 +21,6 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
  run a reader/writer action $readerWriter
 
- The Eff monad is stack safe with Eval   $stacksafeEval
  The Eff monad is stack safe with Writer $stacksafeWriter
  The Eff monad is stack safe with Reader $stacksafeReader
 
@@ -97,15 +96,6 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     val initial = init.value
     run(runReader(initial)(runWriter(readWrite))) must_==
       ((initial * 2, List("initial="+initial, "result="+(initial*2))))
-  }
-
-  def stacksafeEval = {
-    type E = Eval <:: EffectsNil
-
-    val list = (1 to 5000).toList
-    val action = list.traverseU(i => Eval.delay[E, Int](i))
-
-    run(runEval(action)) ==== list
   }
 
   def stacksafeWriter = {

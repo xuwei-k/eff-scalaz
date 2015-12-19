@@ -6,6 +6,7 @@ import Member._
 import scala.collection.mutable.ListBuffer
 import Eval._
 import Eff._
+import scalaz._, Scalaz._
 
 class EvalSpec extends Specification { def is = s2"""
 
@@ -17,7 +18,8 @@ class EvalSpec extends Specification { def is = s2"""
    if the first is successful, the second is not executed $orElse1
    if the first is not successful, the second is executed $orElse2
 
-
+ run is stack safe with Eval   $stacksafeRun
+                                                   |
 """
 
   type R = Eval <:: EffectsNil
@@ -75,5 +77,23 @@ class EvalSpec extends Specification { def is = s2"""
 
     (run(runEval(all)) === 2) and
     (messages.toList === List("second"))
+  }
+
+  def stacksafeRun = {
+    type E = Eval <:: EffectsNil
+
+    val list = (1 to 5000).toList
+    val action = list.traverseU(i => Eval.delay[E, Int](i))
+
+    run(runEval(action)) ==== list
+  }
+
+  def stacksafeAttempt = {
+    type E = Eval <:: EffectsNil
+
+    val list = (1 to 5000).toList
+    val action = list.traverseU(i => Eval.delay[E, Int](i))
+
+    run(attemptEval(action)) ==== \/-(list) 
   }
 }

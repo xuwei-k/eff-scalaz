@@ -17,7 +17,7 @@ class CheckedSpec extends Specification with ScalaCheck { def is = s2"""
  run the checked monad with nothing        $checkedWithKoMonad
  run the checked monad with reader         $checkedReader
 
- The Eff monad is stack safe with Checked  $stacksafeChecked
+ run is stack safe with Checked      $stacksafeRun
 
 """
 
@@ -79,7 +79,7 @@ class CheckedSpec extends Specification with ScalaCheck { def is = s2"""
 
   type CheckedString[A] = Checked[String, A]
 
-  def stacksafeChecked = {
+  def stacksafeRun = {
     type E = CheckedString <:: EffectsNil
     implicit def CheckedStringMember: Member[CheckedString, E] =
       Member.MemberNatIsMember
