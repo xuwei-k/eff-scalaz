@@ -28,7 +28,7 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
     runWith(2, 3)._1 must be_\/-(5)
 
   def stop =
-    runWith(20, 30)._1 must_== Left(\/-("too big"))
+    runWith(20, 30)._1 ==== -\/(\/-("too big"))
 
   def logMessages = {
     val messages = new scala.collection.mutable.ListBuffer[String]
