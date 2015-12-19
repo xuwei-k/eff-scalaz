@@ -1,7 +1,8 @@
 package org.specs2.control
 
 import Eff._
-  import Effects._
+import Effects._
+import Member._
 
 sealed trait Reader[I, X]
 
@@ -14,20 +15,28 @@ object Reader {
 
   def runReaderOnly[R, A](initial: A)(r: Eff[R, A])(implicit member: Member[Reader[A, ?], R]): A =
     r match {
-      case Pure(run) => run()
+      case p@Pure(_) => p.value
 
       case Impure(union, continuation) =>
         member.project(union).map(_ => runReaderOnly(initial)(continuation.apply(initial))).getOrElse(initial)
     }
 
   def runReader[R <: Effects, A, B](initial: A)(r: Eff[Reader[A, ?] <:: R, B]): Eff[R, B] = {
-    val readRest = new EffBind[Reader[A, ?], R, B] {
-      def apply[X](r: Reader[A, X])(continuation: X => Eff[R, B]): Eff[R, B] = r match {
-        case Get() => continuation(initial.asInstanceOf[X])
+    def loop(eff: Eff[Reader[A, ?] <:: R, B]): Eff[R, B] = {
+      if (eff.isInstanceOf[Pure[Reader[A, ?] <:: R, B]])
+         EffMonad[R].point(eff.asInstanceOf[Pure[Reader[A, ?] <:: R, B]].value)
+      else {
+        val i = eff.asInstanceOf[Impure[Reader[A, ?] <:: R, B]]
+        val d = decompose[Reader[A, ?], R, B](i.union.asInstanceOf[Union[Reader[A, ?] <:: R, B]])
+        if (d.toOption.isDefined)
+          loop(i.continuation(initial))
+        else {
+          val u = d.toEither.left.toOption.get
+          Impure[R, B](u.asInstanceOf[Union[R, Any]], Arrs.singleton(x => loop(i.continuation(x))))
+        }
       }
     }
 
-    relay1[R, Reader[A, ?], B, B]((b: B) => b)(readRest)(r)
+    loop(r)
   }
-
 }

@@ -21,7 +21,9 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
  run a reader/writer action $readerWriter
 
- The Eff monad is stack safe $stackSafe
+ The Eff monad is stack safe with Eval   $stacksafeEval
+ The Eff monad is stack safe with Writer $stacksafeWriter
+ The Eff monad is stack safe with Reader $stacksafeReader
 
 """
 
@@ -97,14 +99,38 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
       ((initial * 2, List("initial="+initial, "result="+(initial*2))))
   }
 
-  def stackSafe = {
+  def stacksafeEval = {
     type E = Eval <:: EffectsNil
 
     val list = (1 to 5000).toList
     val action = list.traverseU(i => Eval.delay[E, Int](i))
 
     run(runEval(action)) ==== list
-  } //.pendingUntilFixed
+  }
+
+  def stacksafeWriter = {
+    type WriterString[A] = Writer[String, A]
+    type E = WriterString <:: EffectsNil
+    implicit def WriterStringMember: Member[WriterString, E] =
+      Member.MemberNatIsMember
+
+    val list = (1 to 5000).toList
+    val action = list.traverseU(i => Writer.tell[E, String](i.toString))
+
+    run(Writer.runWriter(action)) ==== ((list.as(()), list.map(_.toString)))
+  }
+
+  def stacksafeReader = {
+    type ReaderString[A] = Reader[String, A]
+    type E = ReaderString <:: EffectsNil
+    implicit def ReaderStringMember: Member[ReaderString, E] =
+      Member.MemberNatIsMember
+
+    val list = (1 to 5000).toList
+    val action = list.traverseU(i => Reader.ask[E, String])
+
+    run(Reader.runReader("h")(action)) ==== list.map(_ => "h")
+  }
 
   /**
    * Helpers

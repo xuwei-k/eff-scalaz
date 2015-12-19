@@ -38,11 +38,11 @@ object ConsoleEff {
   def runConsoleToPrinter[R <: Effects, A](printer: String => Unit): Eff[Console <:: R, A] => Eff[R, A] = {
     val putRest = new EffBind[Console, R, A] {
       def apply[X](w: Console[X])(continuation: X => Eff[R, A]): Eff[R, A] = Tag.unwrap(w) match {
-        case Put(m) => printer(m()); continuation(())
+        case p@Put(m) => printer(p.value); continuation(())
       }
     }
 
-    relay1((a: A) => a)(putRest)
+    interpret1((a: A) => a)(putRest)
   }
 
 }

@@ -15,6 +15,8 @@ class OptionalSpec extends Specification with ScalaCheck { def is = s2"""
  run the optional monad with nothing        $optionalWithNothingMonad
  run the optional monad with reader         $optionalReader
 
+ The Eff monad is stack safe with Optional  $stacksafeOptional
+
 """
 
   def optionalMonad = {
@@ -64,4 +66,16 @@ class OptionalSpec extends Specification with ScalaCheck { def is = s2"""
     run(runReader(initial)(runOptional(readOptional))) must_==
       Some(initial + someValue.value)
   }
+
+  def stacksafeOptional = {
+    type E = Optional <:: EffectsNil
+    implicit def OptionalMember: Member[Optional, E] =
+      Member.MemberNatIsMember
+
+    val list = (1 to 5000).toList
+    val action = list.traverseU(i => Optional.something(i))
+
+    run(Optional.runOptional(action)) ==== Some(list)
+  }
+
 }

@@ -1,8 +1,8 @@
 package org.specs2.control
 
-
 import Eff._
 import Effects._
+import Member._
 
 sealed trait Optional[A]
 
@@ -18,14 +18,26 @@ object Optional {
     impure(member.inject(Something[A](a)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
 
   def runOptional[R <: Effects, A](r: Eff[Optional[?] <:: R, A]): Eff[R, Option[A]] = {
-    val bind = new EffBind[Optional, R, Option[A]] {
-      def apply[X](r: Optional[X])(continuation: X => Eff[R, Option[A]]): Eff[R, Option[A]] = r match {
-        case Nothing()   => pure(None)
-        case Something(a) => continuation(a)
+    def loop(eff: Eff[Optional <:: R, A]): Eff[R, Option[A]] = {
+      if (eff.isInstanceOf[Pure[Optional <:: R, A]])
+         EffMonad[R].point(Option(eff.asInstanceOf[Pure[Optional <:: R, A]].value))
+      else {
+        val i = eff.asInstanceOf[Impure[Optional <:: R, A]]
+        val d = decompose[Optional, R, A](i.union.asInstanceOf[Union[Optional <:: R, A]])
+        if (d.toOption.isDefined)
+          d.toOption.get match {
+            case Nothing() => Eff.pure(None)
+            case Something(a) => loop(i.continuation(a))
+          }
+
+        else {
+          val u = d.toEither.left.toOption.get
+          Impure[R, Option[A]](u.asInstanceOf[Union[R, Any]], Arrs.singleton(x => loop(i.continuation(x))))
+        }
       }
     }
 
-    relay1[R, Optional, A, Option[A]]((a: A) => Option(a))(bind)(r)
+    loop(r)
   }
 }
 

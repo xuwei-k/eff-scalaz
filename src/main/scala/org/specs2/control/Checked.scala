@@ -19,14 +19,26 @@ object Checked {
     impure(member.inject(CheckedOk[E, A](a)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
 
   def runChecked[R <: Effects, E, A](r: Eff[Checked[E, ?] <:: R, A]): Eff[R, Either[E, A]] = {
-    val bind = new EffBind[Checked[E, ?], R, Either[E, A]] {
-      def apply[X](r: Checked[E, X])(continuation: X => Eff[R, Either[E, A]]): Eff[R, Either[E, A]] = r match {
-        case CheckedKo(e) => pure(Left[E, A](e): Either[E, A])
-        case CheckedOk(a) => continuation(a)
+    def loop(eff: Eff[Checked[E, ?] <:: R, A]): Eff[R, Either[E, A]] = {
+      if (eff.isInstanceOf[Pure[Checked[E, ?] <:: R, A]])
+         EffMonad[R].point(Right(eff.asInstanceOf[Pure[Checked[E, ?] <:: R, A]].value))
+      else {
+        val i = eff.asInstanceOf[Impure[Checked[E, ?] <:: R, A]]
+        val d = decompose[Checked[E, ?], R, A](i.union.asInstanceOf[Union[Checked[E, ?] <:: R, A]])
+        if (d.toOption.isDefined)
+          d.toOption.get match {
+            case CheckedKo(e) => pure(Left[E, A](e): Either[E, A])
+            case CheckedOk(a) => loop(i.continuation(a))
+          }
+        else {
+          val u = d.toEither.left.toOption.get
+          Impure[R, Either[E, A]](u.asInstanceOf[Union[R, Any]], Arrs.singleton(x => loop(i.continuation(x))))
+        }
       }
     }
 
-    relay1[R, Checked[E, ?], A, Either[E, A]]((a: A) => Right(a): Either[E, A])(bind)(r)
+    loop(r)
+
   }
 }
 

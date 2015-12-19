@@ -1,5 +1,6 @@
 package org.specs2.control
 
+import scala.annotation.tailrec
 import scalaz._
 import Effects._
 import Member._
@@ -28,7 +29,7 @@ object Eff {
 
     def bind[A, B](fa: Eff[R, A])(f: A => Eff[R, B]): Eff[R, B] =
       fa match {
-        case Pure(run) => f(run())
+        case p@Pure(_) => f(p.value)
         case Impure(union, continuation) =>
           Impure(union, continuation.append(f))
       }
@@ -44,7 +45,7 @@ object Eff {
   def unit[R]: Eff[R, Unit] =
     EffMonad.point(())
 
-  def pure[R, A](run: A): Eff[R, A] =
+  def pure[R, A](run: =>A): Eff[R, A] =
     Pure(() => run)
 
   def impure[R, A, X](union: Union[R, X], continuation: Arrs[R, X, A]): Eff[R, A] =
@@ -52,7 +53,7 @@ object Eff {
 
   def run[A](eff: Eff[EffectsNil, A]): A =
     eff match {
-      case Pure(run) => run()
+      case p@Pure(_) => p.value
       case _         => sys.error("impossible")
     }
 
@@ -69,24 +70,27 @@ object Eff {
    *     Right x → h x k
    *     Left u → Impure u (tsingleton k)
    *   where k = qComp q (handle relay ret h)
+   *
+   * This is not stack-safe we need to find better...
+   *
    */
-  def relay[R <: Effects, M[_], A, B](pure: A => Eff[R, B], bind: EffBind[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] = {
+  def interpret[R <: Effects, M[_], A, B](pure: A => Eff[R, B], bind: EffBind[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] = {
     effects match {
-      case Pure(a) => pure(a())
+      case p@Pure(_) => pure(p.value)
 
-      case Impure(union, continuation) =>
-        decompose[M, R, Any](union.asInstanceOf[Union[M <:: R, Any]]) match {
-          case \/-(mx) =>
-            bind(mx)(x => relay(pure, bind)(continuation(x)))
+      case i@Impure(_, _) =>
+        decompose[M, R, A](i.union.asInstanceOf[Union[M <:: R, A]]) match {
+          case \/-(ma) =>
+            bind(ma)((a: A) => interpret(pure, bind)(i.continuation(a)))
 
           case -\/(u)  =>
-            impure(u.asInstanceOf[Union[R, Any]], Arrs.singleton((x: Any) => relay(pure, bind)(continuation.apply(x))))
-        }
+            impure(u.asInstanceOf[Union[R, Any]], Arrs.singleton((x: Any) => interpret(pure, bind)(i.continuation.apply(x))))
+      }
     }
   }
 
-  def relay1[R <: Effects, M[_], A, B](pure: A => B)(bind: EffBind[M, R, B])(e: Eff[M <:: R, A]): Eff[R, B] =
-    relay((a: A) => EffMonad[R].point(pure(a)), bind)(e)
+  def interpret1[R <: Effects, M[_], A, B](pure: A => B)(bind: EffBind[M, R, B])(e: Eff[M <:: R, A]): Eff[R, B] =
+   interpret((a: A) => EffMonad[R].point(pure(a)), bind)(e)
 
 }
 
@@ -103,15 +107,23 @@ case class Arrs[R, A, B] private(functions: Vector[Any => Eff[R, Any]]) {
    *         bind’ (Pure y) k = qApp k y
    * bind’ (Impure u q) k = Impure u (q >< k)
    */
-  def apply(a: A): Eff[R, B] =
-    functions match {
-      case Vector(f) => f(a).asInstanceOf[Eff[R, B]]
-      case f +: rest =>
-        f(a) match {
-          case p: Pure[_,_] => Arrs(rest)(p.value)
-          case Impure(u, q) => Impure[R, B](u, q.copy(functions = q.functions ++ rest))
-        }
+  def apply(a: A): Eff[R, B] = {
+    @tailrec
+    def go(fs: Vector[Any => Eff[R, Any]], v: Any): Eff[R, B] = {
+      fs match {
+        case Vector(f) =>
+          f(v).asInstanceOf[Eff[R, B]]
+
+        case f +: rest =>
+          f(v) match {
+            case p: Pure[_,_] => go(rest, p.value)
+            case Impure(u, q) => Impure[R, B](u, q.copy(functions = q.functions ++ rest))
+          }
+      }
     }
+
+    go(functions, a)
+  }
 }
 
 object Arrs {

@@ -22,11 +22,11 @@ object WarningsEff {
   def runWarnings[R <: Effects, A](w: Eff[Warnings <:: R, A]): Eff[R, (A, Vector[String])] = {
     val putRest = new EffBind[Warnings, R, (A, Vector[String])] {
       def apply[X](w: Warnings[X])(continuation: X => Eff[R, (A, Vector[String])]): Eff[R, (A, Vector[String])] = Tag.unwrap(w) match {
-        case Put(m) => continuation(()) >>= (al => EffMonad[R].point((al._1, al._2 :+ m())))
+        case p@Put(_) => continuation(()) >>= (al => EffMonad[R].point((al._1, al._2 :+ p.value)))
       }
     }
 
-    relay1((a: A) => (a, Vector[String]()))(putRest)(w)
+    interpret1((a: A) => (a, Vector[String]()))(putRest)(w)
   }
 
 }

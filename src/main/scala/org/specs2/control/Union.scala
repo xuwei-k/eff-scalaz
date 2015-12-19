@@ -158,7 +158,7 @@ object Member {
    */
   def decompose[T[_], R <: Effects, V](u: Union[T <:: R, V]): Union[R, V] \/ T[V] =
     u match {
-      case UnionNow(tv) => tv.right
+      case UnionNow(tv)     => tv.right
       case UnionNext(union) => union.left
     }
 
