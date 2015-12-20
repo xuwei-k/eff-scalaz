@@ -31,7 +31,7 @@ object Checked {
         }
     }
 
-    interpretLoop1[R, Checked[E, ?], A, E \/ A]((a: A) => \/-(a))(recurse)(r)
+    interpret1[R, Checked[E, ?], A, E \/ A]((a: A) => \/-(a))(recurse)(r)
   }
 
   def runCheckedEither[R <: Effects, E, A](r: Eff[Checked[E, ?] <:: R, A]): Eff[R, Either[E, A]] =

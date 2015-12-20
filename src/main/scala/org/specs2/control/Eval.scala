@@ -36,7 +36,7 @@ object Eval {
       def apply[X](m: Eval[X]) = -\/(m.value)
     }
 
-    interpretLoop1((a: A) => a)(recurse)(r)
+    interpret1((a: A) => a)(recurse)(r)
   }
 
   def attemptEval[R <: Effects, A](r: Eff[Eval[?] <:: R, A]): Eff[R, Throwable \/ A] = {
@@ -46,7 +46,7 @@ object Eval {
         catch { case NonFatal(t) => \/-(Eff.pure(-\/(t))) }
     }
 
-    interpretLoop1((a: A) => \/-(a): Throwable \/ A)(recurse)(r)
+    interpret1((a: A) => \/-(a): Throwable \/ A)(recurse)(r)
   }
 
   implicit class AndFinally[R, A](action: Eff[R, A]) {

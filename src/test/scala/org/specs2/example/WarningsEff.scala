@@ -21,16 +21,16 @@ object WarningsEff {
    * This interpreter cumulates warnings
    */
   def runWarnings[R <: Effects, A](w: Eff[Warnings <:: R, A]): Eff[R, (A, Vector[String])] = {
-    val stater = new Stater[Warnings, A, (A, Vector[String]), Vector[String]] {
+    val recurse = new StateRecurse[Warnings, A, (A, Vector[String]), Vector[String]] {
       val init = Vector()
       def apply[X](x: Warnings[X], s: Vector[String]): (X, Vector[String]) =
         Tag.unwrap(x) match {
           case p@Write(_) => (().asInstanceOf[X], s :+ p.value)
         }
-      def couple(a: A, s: Vector[String]): (A, Vector[String]) = (a, s)
+      def finalize(a: A, s: Vector[String]): (A, Vector[String]) = (a, s)
     }
 
-    interpretState1[R, Warnings, A, (A, Vector[String]), Vector[String]]((a: A) => (a, Vector()))(stater)(w)
+    interpretState1[R, Warnings, A, (A, Vector[String]), Vector[String]]((a: A) => (a, Vector()))(recurse)(w)
   }
 
 }

@@ -21,6 +21,6 @@ object Reader {
       def apply[X](m: Reader[A, X]) = -\/(initial.asInstanceOf[X])
     }
 
-    interpretLoop1[R, Reader[A, ?], B, B]((b: B) => b)(recurse)(r)
+    interpret1[R, Reader[A, ?], B, B]((b: B) => b)(recurse)(r)
   }
 }

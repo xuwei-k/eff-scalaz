@@ -61,47 +61,59 @@ object Eff {
     def apply[X](m: M[X]): X \/ Eff[R, A]
   }
 
-  def interpretLoop[R <: Effects, M[_], A, B](pure: A => Eff[R, B], recurse: Recurse[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] = {
-    def loop(eff: Eff[M <:: R, A]): Eff[R, B] = {
-      if (eff.isInstanceOf[Pure[M <:: R, A]])
-         pure(eff.asInstanceOf[Pure[M <:: R, A]].value)
-      else {
-        val i = eff.asInstanceOf[Impure[M <:: R, A]]
-        val d = decompose[M, R, A](i.union.asInstanceOf[Union[M <:: R, A]])
-        if (d.toOption.isDefined)
-          recurse(d.toOption.get) match {
-            case -\/(x) => loop(i.continuation(x))
-            case \/-(b) => b
-          }
-        else {
-          val u = d.toEither.left.toOption.get
-          Impure[R, B](u.asInstanceOf[Union[R, Any]], Arrs.singleton(x => loop(i.continuation(x))))
-        }
-      }
-    }
+  def interpret[R <: Effects, M[_], A, B](pure: A => Eff[R, B], recurse: Recurse[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] = {
+    val recurseState = new StateExitRecurse[R, M, A, B, Unit] {
+      val init = ()
+      def apply[X](x: M[X], s: Unit): (X, Unit) \/ Eff[R, B] =
+        recurse(x).leftMap((_, ()))
 
-    loop(effects)
+      def finalize(a: A, s: Unit): Eff[R, B] =
+        pure(a)
+    }
+    interpretStateExit(pure, recurseState)(effects)
   }
 
-  def interpretLoop1[R <: Effects, M[_], A, B](pure: A => B)(recurse: Recurse[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] =
-    interpretLoop((a: A) => EffMonad[R].point(pure(a)), recurse)(effects)
+  def interpret1[R <: Effects, M[_], A, B](pure: A => B)(recurse: Recurse[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] =
+    interpret((a: A) => EffMonad[R].point(pure(a)), recurse)(effects)
 
-  trait Stater[M[_], A, B, S] {
+  trait StateRecurse[M[_], A, B, S] {
     val init: S
     def apply[X](x: M[X], s: S): (X, S)
-    def couple(a: A, s: S): B
+    def finalize(a: A, s: S): B
   }
 
-  def interpretState[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], stater: Stater[M, A, B, S])(effects: Eff[M <:: R, A]): Eff[R, B] = {
+  def interpretState[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], recurse: StateRecurse[M, A, B, S])(effects: Eff[M <:: R, A]): Eff[R, B] = {
+    val recurseExit = new StateExitRecurse[R, M, A, B, S] {
+      val init: S = recurse.init
+      def apply[X](x: M[X], s: S): (X, S) \/ Eff[R, B] =
+        -\/(recurse(x, s))
+      def finalize(a: A, s: S): Eff[R, B] =
+        EffMonad[R].point(recurse.finalize(a, s))
+    }
+    interpretStateExit(pure, recurseExit)(effects)
+  }
+
+  def interpretState1[R <: Effects, M[_], A, B, S](pure: A => B)(recurse: StateRecurse[M, A, B, S])(effects: Eff[M <:: R, A]): Eff[R, B] =
+    interpretState((a: A) => EffMonad[R].point(pure(a)), recurse)(effects)
+
+  trait StateExitRecurse[R, M[_], A, B, S] {
+    val init: S
+    def apply[X](x: M[X], s: S): (X, S) \/ Eff[R, B]
+    def finalize(a: A, s: S): Eff[R, B]
+  }
+
+  def interpretStateExit[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], recurse: StateExitRecurse[R, M, A, B, S])(effects: Eff[M <:: R, A]): Eff[R, B] = {
     def loop(eff: Eff[M <:: R, A], s: S): Eff[R, B] = {
       if (eff.isInstanceOf[Pure[M <:: R, A]])
-         EffMonad[R].point(stater.couple(eff.asInstanceOf[Pure[M <:: R, A]].value, s))
+         recurse.finalize(eff.asInstanceOf[Pure[M <:: R, A]].value, s)
       else {
         val i = eff.asInstanceOf[Impure[M <:: R, A]]
         val d = decompose[M, R, A](i.union.asInstanceOf[Union[M <:: R, A]])
         if (d.toOption.isDefined) {
-          val (x, s1) = stater(d.toOption.get, s)
-          loop(i.continuation(x), s1)
+          recurse(d.toOption.get, s) match {
+            case \/-(b)       => b
+            case -\/((x, s1)) => loop(i.continuation(x), s1)
+          }
         } else {
           val u = d.toEither.left.toOption.get
           Impure[R, B](u.asInstanceOf[Union[R, Any]], Arrs.singleton(x => loop(i.continuation(x), s)))
@@ -109,46 +121,9 @@ object Eff {
       }
     }
 
-    loop(effects, stater.init)
+    loop(effects, recurse.init)
   }
 
-  def interpretState1[R <: Effects, M[_], A, B, S](pure: A => B)(stater: Stater[M, A, B, S])(effects: Eff[M <:: R, A]): Eff[R, B] =
-    interpretState((a: A) => EffMonad[R].point(pure(a)), stater)(effects)
-
-  trait EffBind[M[_], R, A] {
-    def apply[X](m: M[X])(continuation: X => Eff[R, A]): Eff[R, A]
-  }
-
-  /**
-   * handle relay :: (a → Eff r w) →
-   *                 (∀ v. t v → Arr r v w → Eff r w) →
-   *                 Eff (t ’: r ) a → Eff r w
-   * handle relay ret (Pure x) = ret x
-   * handle relay ret h (Impure u q) = case decomp u of
-   *     Right x → h x k
-   *     Left u → Impure u (tsingleton k)
-   *   where k = qComp q (handle relay ret h)
-   *
-   * This is not stack-safe we need to find better...
-   *
-   */
-  def interpret[R <: Effects, M[_], A, B](pure: A => Eff[R, B], bind: EffBind[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] = {
-    effects match {
-      case p@Pure(_) => pure(p.value)
-
-      case i@Impure(_, _) =>
-        decompose[M, R, A](i.union.asInstanceOf[Union[M <:: R, A]]) match {
-          case \/-(ma) =>
-            bind(ma)((a: A) => interpret(pure, bind)(i.continuation(a)))
-
-          case -\/(u)  =>
-            impure(u.asInstanceOf[Union[R, Any]], Arrs.singleton((x: Any) => interpret(pure, bind)(i.continuation.apply(x))))
-      }
-    }
-  }
-
-  def interpret1[R <: Effects, M[_], A, B](pure: A => B)(bind: EffBind[M, R, B])(e: Eff[M <:: R, A]): Eff[R, B] =
-   interpret((a: A) => EffMonad[R].point(pure(a)), bind)(e)
 
 }
 

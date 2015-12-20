@@ -29,7 +29,7 @@ object Optional {
         }
     }
 
-    interpretLoop1[R, Optional, A, Option[A]]((a: A) => Option(a))(recurse)(r)
+    interpret1[R, Optional, A, Option[A]]((a: A) => Option(a))(recurse)(r)
   }
 }
 

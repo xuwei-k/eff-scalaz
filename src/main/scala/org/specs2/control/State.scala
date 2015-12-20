@@ -21,16 +21,16 @@ object State {
     send[State[S, ?], R, S](Get())
 
   def runState[R <: Effects, S, A](initial: S)(w: Eff[State[S, ?] <:: R, A]): Eff[R, (A, S)] = {
-    val stater: Stater[State[S, ?], A, (A, S), S] = new Stater[State[S, ?], A, (A, S), S] {
+    val recurse: StateRecurse[State[S, ?], A, (A, S), S] = new StateRecurse[State[S, ?], A, (A, S), S] {
       val init = initial
       def apply[X](x: State[S, X], s: S) = x match {
         case Get()   => (s.asInstanceOf[X], s)
         case Put(s1) => ((), s1)
       }
-      def couple(a: A, s: S) = (a, s)
+      def finalize(a: A, s: S) = (a, s)
 
     }
 
-    interpretState1[R, State[S, ?], A, (A, S), S]((a: A) => (a, initial))(stater)(w)
+    interpretState1[R, State[S, ?], A, (A, S), S]((a: A) => (a, initial))(recurse)(w)
   }
 }

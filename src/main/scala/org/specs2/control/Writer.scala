@@ -26,13 +26,13 @@ object Writer {
     send[Writer[O, ?], R, Unit](write(o))
 
   def runWriter[R <: Effects, O, A](w: Eff[Writer[O, ?] <:: R, A]): Eff[R, (A, List[O])] = {
-    val stater: Stater[Writer[O, ?], A, (A, List[O]), List[O]] = new Stater[Writer[O, ?], A, (A, List[O]), List[O]] {
+    val recurse: StateRecurse[Writer[O, ?], A, (A, List[O]), List[O]] = new StateRecurse[Writer[O, ?], A, (A, List[O]), List[O]] {
       val init = List[O]()
       def apply[X](x: Writer[O, X], l: List[O]) = (().asInstanceOf[X], l :+ x.value)
-      def couple(a: A, l: List[O]) = (a, l)
+      def finalize(a: A, l: List[O]) = (a, l)
 
     }
 
-    interpretState1[R, Writer[O, ?], A, (A, List[O]), List[O]]((a: A) => (a, List[O]()))(stater)(w)
+    interpretState1[R, Writer[O, ?], A, (A, List[O]), List[O]]((a: A) => (a, List[O]()))(recurse)(w)
   }
 }
