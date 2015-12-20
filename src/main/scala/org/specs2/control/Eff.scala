@@ -86,6 +86,33 @@ object Eff {
   def interpretLoop1[R <: Effects, M[_], A, B](pure: A => B)(bind: Binder[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] =
     interpretLoop((a: A) => EffMonad[R].point(pure(a)), bind)(effects)
 
+    trait Stater[M[_], A, B, S] {
+    val init: S
+    def apply[X](x: M[X], s: S): S
+    def couple(a: A, s: S): B
+  }
+
+  def interpretState[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], stater: Stater[M, A, B, S])(effects: Eff[M <:: R, A]): Eff[R, B] = {
+    def loop(eff: Eff[M <:: R, A], s: S): Eff[R, B] = {
+      if (eff.isInstanceOf[Pure[M <:: R, A]])
+         EffMonad[R].point(stater.couple(eff.asInstanceOf[Pure[M <:: R, A]].value, s))
+      else {
+        val i = eff.asInstanceOf[Impure[M <:: R, A]]
+        val d = decompose[M, R, A](i.union.asInstanceOf[Union[M <:: R, A]])
+        if (d.toOption.isDefined)
+          loop(i.continuation(()), stater(d.toOption.get, s))
+        else {
+          val u = d.toEither.left.toOption.get
+          Impure[R, B](u.asInstanceOf[Union[R, Any]], Arrs.singleton(x => loop(i.continuation(x), s)))
+        }
+      }
+    }
+
+    loop(effects, stater.init)
+  }
+
+  def interpretState1[R <: Effects, M[_], A, B, S](pure: A => B)(stater: Stater[M, A, B, S])(effects: Eff[M <:: R, A]): Eff[R, B] =
+    interpretState((a: A) => EffMonad[R].point(pure(a)), stater)(effects)
 
   trait EffBind[M[_], R, A] {
     def apply[X](m: M[X])(continuation: X => Eff[R, A]): Eff[R, A]

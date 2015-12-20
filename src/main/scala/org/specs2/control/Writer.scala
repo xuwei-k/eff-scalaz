@@ -4,7 +4,9 @@ import Eff._
 import Effects._
 import Member._
 
-sealed trait Writer[O, X]
+sealed trait Writer[O, X] {
+  def value: O
+}
 
 case class Put[O](private val run: () => O) extends Writer[O, Unit] {
   def value: O =
@@ -28,22 +30,13 @@ object Writer {
    * (\(Put o) k → k () >>= \(x,l ) → return (x, o: l ))
    */
   def runWriter[R <: Effects, O, A](w: Eff[Writer[O, ?] <:: R, A]): Eff[R, (A, List[O])] = {
-    def loop(eff: Eff[Writer[O, ?] <:: R, A], l: List[O]): Eff[R, (A, List[O])] = {
-      if (eff.isInstanceOf[Pure[Writer[O, ?] <:: R, A]])
-         EffMonad[R].point((eff.asInstanceOf[Pure[Writer[O, ?] <:: R, A]].value, l))
-      else {
-        val i = eff.asInstanceOf[Impure[Writer[O, ?] <:: R, A]]
-        val d = decompose[Writer[O, ?], R, A](i.union.asInstanceOf[Union[Writer[O, ?] <:: R, A]])
-        if (d.toOption.isDefined)
-          loop(i.continuation(()), l :+ d.toOption.get.asInstanceOf[Put[O]].value)
-        else {
-          val u = d.toEither.left.toOption.get
-          Impure[R, (A, List[O])](u.asInstanceOf[Union[R, Any]], Arrs.singleton(x => loop(i.continuation(x), l)))
-        }
-      }
+    val stater: Stater[Writer[O, ?], A, (A, List[O]), List[O]] = new Stater[Writer[O, ?], A, (A, List[O]), List[O]] {
+      val init = List[O]()
+      def apply[X](x: Writer[O, X], l: List[O]) = l :+ x.value
+      def couple(a: A, l: List[O]) = (a, l)
+
     }
 
-    loop(w, List[O]())
+    interpretState1[R, Writer[O, ?], A, (A, List[O]), List[O]]((a: A) => (a, List[O]()))(stater)(w)
   }
-
 }
