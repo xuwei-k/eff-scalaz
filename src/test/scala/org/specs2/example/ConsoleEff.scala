@@ -37,13 +37,16 @@ object ConsoleEff {
    * This interpreter prints messages to a printing function
    */
   def runConsoleToPrinter[R <: Effects, A](printer: String => Unit): Eff[Console <:: R, A] => Eff[R, A] = {
-    val putRest = new EffBind[Console, R, A] {
-      def apply[X](w: Console[X])(continuation: X => Eff[R, A]): Eff[R, A] = Tag.unwrap(w) match {
-        case p@Write(m) => printer(p.value); continuation(())
-      }
+    val stater = new Stater[Console, A, A, Unit] {
+      val init = ()
+      def apply[X](x: Console[X], s: Unit): (X, Unit) =
+        Tag.unwrap(x) match {
+          case p@Write(m) => (printer(m), ())
+        }
+      def couple(a: A, s: Unit): A = a
     }
 
-    interpret1((a: A) => a)(putRest)
+    interpretState1((a: A) => a)(stater)
   }
 
 }

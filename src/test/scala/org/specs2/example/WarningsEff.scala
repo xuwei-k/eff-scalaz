@@ -5,7 +5,7 @@ import org.specs2.control.Eff._
 import org.specs2.control.Effects._
 import org.specs2.control.{Effects, Eff, Member, Writer}
 import Writer._
-import scalaz.{Reader => _, Writer => _, _}, Scalaz._
+import scalaz.{Reader => _, Writer => _, _}
 
 object WarningsEff {
 
@@ -21,13 +21,16 @@ object WarningsEff {
    * This interpreter cumulates warnings
    */
   def runWarnings[R <: Effects, A](w: Eff[Warnings <:: R, A]): Eff[R, (A, Vector[String])] = {
-    val putRest = new EffBind[Warnings, R, (A, Vector[String])] {
-      def apply[X](w: Warnings[X])(continuation: X => Eff[R, (A, Vector[String])]): Eff[R, (A, Vector[String])] = Tag.unwrap(w) match {
-        case p@Write(_) => continuation(()) >>= (al => EffMonad[R].point((al._1, al._2 :+ p.value)))
-      }
+    val stater = new Stater[Warnings, A, (A, Vector[String]), Vector[String]] {
+      val init = Vector()
+      def apply[X](x: Warnings[X], s: Vector[String]): (X, Vector[String]) =
+        Tag.unwrap(x) match {
+          case p@Write(_) => (().asInstanceOf[X], s :+ p.value)
+        }
+      def couple(a: A, s: Vector[String]): (A, Vector[String]) = (a, s)
     }
 
-    interpret1((a: A) => (a, Vector[String]()))(putRest)(w)
+    interpretState1[R, Warnings, A, (A, Vector[String]), Vector[String]]((a: A) => (a, Vector()))(stater)(w)
   }
 
 }
