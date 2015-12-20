@@ -23,7 +23,7 @@ object Checked {
     impure(member.inject(CheckedOk[E, A](a)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
 
   def runChecked[R <: Effects, E, A](r: Eff[Checked[E, ?] <:: R, A]): Eff[R, E \/ A] = {
-    val bind = new Binder[Checked[E, ?], R, E \/ A] {
+    val recurse = new Recurse[Checked[E, ?], R, E \/ A] {
       def apply[X](m: Checked[E, X]) =
         m match {
           case CheckedKo(e) => \/-(EffMonad[R].point(-\/(e): E \/ A))
@@ -31,7 +31,7 @@ object Checked {
         }
     }
 
-    interpretLoop1[R, Checked[E, ?], A, E \/ A]((a: A) => \/-(a))(bind)(r)
+    interpretLoop1[R, Checked[E, ?], A, E \/ A]((a: A) => \/-(a))(recurse)(r)
   }
 
   def runCheckedEither[R <: Effects, E, A](r: Eff[Checked[E, ?] <:: R, A]): Eff[R, Either[E, A]] =

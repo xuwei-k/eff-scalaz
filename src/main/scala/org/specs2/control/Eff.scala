@@ -57,11 +57,11 @@ object Eff {
       case _         => sys.error("impossible")
     }
 
-  trait Binder[M[_], R, A] {
+  trait Recurse[M[_], R, A] {
     def apply[X](m: M[X]): X \/ Eff[R, A]
   }
 
-  def interpretLoop[R <: Effects, M[_], A, B](pure: A => Eff[R, B], bind: Binder[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] = {
+  def interpretLoop[R <: Effects, M[_], A, B](pure: A => Eff[R, B], recurse: Recurse[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] = {
     def loop(eff: Eff[M <:: R, A]): Eff[R, B] = {
       if (eff.isInstanceOf[Pure[M <:: R, A]])
          pure(eff.asInstanceOf[Pure[M <:: R, A]].value)
@@ -69,7 +69,7 @@ object Eff {
         val i = eff.asInstanceOf[Impure[M <:: R, A]]
         val d = decompose[M, R, A](i.union.asInstanceOf[Union[M <:: R, A]])
         if (d.toOption.isDefined)
-          bind(d.toOption.get) match {
+          recurse(d.toOption.get) match {
             case -\/(x) => loop(i.continuation(x))
             case \/-(b) => b
           }
@@ -83,10 +83,10 @@ object Eff {
     loop(effects)
   }
 
-  def interpretLoop1[R <: Effects, M[_], A, B](pure: A => B)(bind: Binder[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] =
-    interpretLoop((a: A) => EffMonad[R].point(pure(a)), bind)(effects)
+  def interpretLoop1[R <: Effects, M[_], A, B](pure: A => B)(recurse: Recurse[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] =
+    interpretLoop((a: A) => EffMonad[R].point(pure(a)), recurse)(effects)
 
-    trait Stater[M[_], A, B, S] {
+  trait Stater[M[_], A, B, S] {
     val init: S
     def apply[X](x: M[X], s: S): (X, S)
     def couple(a: A, s: S): B

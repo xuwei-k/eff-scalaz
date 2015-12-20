@@ -21,7 +21,7 @@ object Optional {
     impure(member.inject(Something[A](a)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
 
   def runOptional[R <: Effects, A](r: Eff[Optional[?] <:: R, A]): Eff[R, Option[A]] = {
-    val bind = new Binder[Optional, R, Option[A]] {
+    val recurse = new Recurse[Optional, R, Option[A]] {
       def apply[X](m: Optional[X]) =
         m match {
           case Nothing()    => \/-(EffMonad[R].point(None))
@@ -29,7 +29,7 @@ object Optional {
         }
     }
 
-    interpretLoop1[R, Optional, A, Option[A]]((a: A) => Option(a))(bind)(r)
+    interpretLoop1[R, Optional, A, Option[A]]((a: A) => Option(a))(recurse)(r)
   }
 }
 

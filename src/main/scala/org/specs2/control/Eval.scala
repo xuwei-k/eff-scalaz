@@ -32,21 +32,21 @@ object Eval {
     delay(a.unsafePerformIO)
 
   def runEval[R <: Effects, A](r: Eff[Eval[?] <:: R, A]): Eff[R, A] = {
-    val bind = new Binder[Eval, R, A] {
+    val recurse = new Recurse[Eval, R, A] {
       def apply[X](m: Eval[X]) = -\/(m.value)
     }
 
-    interpretLoop1((a: A) => a)(bind)(r)
+    interpretLoop1((a: A) => a)(recurse)(r)
   }
 
   def attemptEval[R <: Effects, A](r: Eff[Eval[?] <:: R, A]): Eff[R, Throwable \/ A] = {
-    val bind = new Binder[Eval, R, Throwable \/ A] {
+    val recurse = new Recurse[Eval, R, Throwable \/ A] {
       def apply[X](m: Eval[X]) =
         try { -\/(m.value) }
         catch { case NonFatal(t) => \/-(Eff.pure(-\/(t))) }
     }
 
-    interpretLoop1((a: A) => \/-(a): Throwable \/ A)(bind)(r)
+    interpretLoop1((a: A) => \/-(a): Throwable \/ A)(recurse)(r)
   }
 
   implicit class AndFinally[R, A](action: Eff[R, A]) {
