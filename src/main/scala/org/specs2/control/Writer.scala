@@ -4,16 +4,19 @@ import Eff._
 import Effects._
 import Member._
 
-sealed trait Writer[O, X] {
-  def value: O
-}
-
-case class Write[O](o: O) extends Writer[O, Unit] {
-  def value: O =
-    o
-}
-
+/**
+ * Effect for logging values alongside computations
+ */
 object Writer {
+
+  sealed trait Writer[O, X] {
+    def value: O
+  }
+
+  case class Write[O](o: O) extends Writer[O, Unit] {
+    def value: O =
+      o
+  }
 
   def write[O](o: O): Writer[O, Unit] =
     Write(o)

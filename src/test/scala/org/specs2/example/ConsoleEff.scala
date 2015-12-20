@@ -1,9 +1,10 @@
 package org.specs2.example
 
-import org.specs2.control.{Effects, Eff, Member, Writer, Write}
+import org.specs2.control.{Effects, Eff, Member, Writer}
 import Effects._
 import Eff._
 import scalaz.{Reader => _, Writer => _, _}, Scalaz._
+import Writer._
 
 object ConsoleEff {
 

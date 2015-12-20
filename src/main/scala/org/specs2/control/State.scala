@@ -4,12 +4,15 @@ import Eff._
 import Effects._
 import Member._
 
-sealed trait State[S, X]
-
-case class Get[S]() extends State[S, S]
-case class Put[S](s: S) extends State[S, Unit]
-
+/**
+ * Effect for passing state
+ */
 object State {
+
+  sealed trait State[S, X]
+
+  case class Get[S]() extends State[S, S]
+  case class Put[S](s: S) extends State[S, Unit]
 
   def put[R, S](s: S)(implicit member: Member[State[S, ?], R]): Eff[R, Unit] =
     send[State[S, ?], R, Unit](Put(s))

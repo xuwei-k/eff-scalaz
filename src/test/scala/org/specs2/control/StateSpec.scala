@@ -4,7 +4,7 @@ package control
 import Eff._
 import Effects._
 import State._
-import scalaz._, Scalaz.{get =>_, put =>_, _}
+import scalaz.{State=>_,_}, Scalaz.{get =>_, put =>_, _}
 
 class StateSpec extends Specification with ScalaCheck { def is = s2"""
 

@@ -4,13 +4,17 @@ import scalaz._, Scalaz._
 import Eff._
 import Member._
 import Effects._
+import Checked._
 
-sealed trait Checked[E, A]
-
-case class CheckedKo[E, A](e: E) extends Checked[E, A]
-case class CheckedOk[E, A](a: A) extends Checked[E, A]
-
+/**
+ * Effect for computation which can fail
+ */
 object Checked {
+
+  sealed trait Checked[E, A]
+
+  case class CheckedKo[E, A](e: E) extends Checked[E, A]
+  case class CheckedOk[E, A](a: A) extends Checked[E, A]
 
   def ko[R, E, A](e: E)(implicit member: Member[Checked[E, ?], R]): Eff[R, A] =
     impure(member.inject(CheckedKo[E, A](e)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
@@ -35,6 +39,9 @@ object Checked {
 
 }
 
+/**
+ * Effect for computation which can fail and return a Throwable
+ */
 object CheckedErrorEff {
   type Error = Throwable \/ String
 

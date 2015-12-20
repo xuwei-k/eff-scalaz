@@ -7,7 +7,7 @@ import Eff._
 import Effects._
 import Reader._
 
-import scalaz._, Scalaz._
+import scalaz.{Optional=>_, Reader=>_,_}, Scalaz._
 
 class OptionalSpec extends Specification with ScalaCheck { def is = s2"""
 

@@ -8,7 +8,7 @@ import Writer._
 import Eval.runEval
 import com.ambiata.disorder.PositiveIntSmall
 import org.scalacheck._, Arbitrary._
-import scalaz._, Scalaz._
+import scalaz.{Reader=>_, Writer=>_,_}, Scalaz._
 import scalacheck.ScalazProperties._
 
 class EffSpec extends Specification with ScalaCheck { def is = s2"""

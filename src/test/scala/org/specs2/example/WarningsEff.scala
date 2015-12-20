@@ -3,7 +3,8 @@ package example
 
 import org.specs2.control.Eff._
 import org.specs2.control.Effects._
-import org.specs2.control.{Write, Effects, Eff, Member, Writer}
+import org.specs2.control.{Effects, Eff, Member, Writer}
+import Writer._
 import scalaz.{Reader => _, Writer => _, _}, Scalaz._
 
 object WarningsEff {

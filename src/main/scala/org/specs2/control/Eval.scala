@@ -8,17 +8,19 @@ import scala.util.control.NonFatal
 import scalaz._, Scalaz._
 import scalaz.effect.IO
 
-
-sealed trait Eval[A] {
-  def value: A
-}
-
-case class Evaluate[A](v: () => A) extends Eval[A] {
-  def value: A =
-    v()
-}
-
+/**
+ * Effect for delayed computations
+ */
 object Eval {
+
+  sealed trait Eval[A] {
+    def value: A
+  }
+
+  case class Evaluate[A](v: () => A) extends Eval[A] {
+    def value: A =
+      v()
+  }
 
   def now[R, A](a: A)(implicit m: Member[Eval, R]): Eff[R, A] =
     pure(a)
