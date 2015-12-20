@@ -3,7 +3,7 @@ package example
 
 import org.specs2.control.Eff._
 import org.specs2.control.Effects._
-import org.specs2.control.{Put, Effects, Eff, Member, Writer}
+import org.specs2.control.{Write, Effects, Eff, Member, Writer}
 import scalaz.{Reader => _, Writer => _, _}, Scalaz._
 
 object WarningsEff {
@@ -22,7 +22,7 @@ object WarningsEff {
   def runWarnings[R <: Effects, A](w: Eff[Warnings <:: R, A]): Eff[R, (A, Vector[String])] = {
     val putRest = new EffBind[Warnings, R, (A, Vector[String])] {
       def apply[X](w: Warnings[X])(continuation: X => Eff[R, (A, Vector[String])]): Eff[R, (A, Vector[String])] = Tag.unwrap(w) match {
-        case p@Put(_) => continuation(()) >>= (al => EffMonad[R].point((al._1, al._2 :+ p.value)))
+        case p@Write(_) => continuation(()) >>= (al => EffMonad[R].point((al._1, al._2 :+ p.value)))
       }
     }
 

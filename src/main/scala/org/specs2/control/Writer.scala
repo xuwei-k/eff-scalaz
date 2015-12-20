@@ -8,31 +8,24 @@ sealed trait Writer[O, X] {
   def value: O
 }
 
-case class Put[O](private val run: () => O) extends Writer[O, Unit] {
+case class Write[O](o: O) extends Writer[O, Unit] {
   def value: O =
-    run()
+    o
 }
 
 object Writer {
 
-  def put[O](o: => O): Writer[O, Unit] =
-    Put(() => o)
+  def write[O](o: O): Writer[O, Unit] =
+    Write(o)
 
-  def tell[R, O](o: => O)(implicit member: Member[Writer[O, ?], R]): Eff[R, Unit] =
+  def tell[R, O](o: O)(implicit member: Member[Writer[O, ?], R]): Eff[R, Unit] =
     // the type annotation is necessary here to prevent a compiler error
-    send[Writer[O, ?], R, Unit](put(o))
+    send[Writer[O, ?], R, Unit](write(o))
 
-
-  /**
-   * runWriter :: Eff (Writer o ’: r ) a → Eff r (a,[ o])
-   * runWriter =
-   * handle relay (\x → return (x,[]))
-   * (\(Put o) k → k () >>= \(x,l ) → return (x, o: l ))
-   */
   def runWriter[R <: Effects, O, A](w: Eff[Writer[O, ?] <:: R, A]): Eff[R, (A, List[O])] = {
     val stater: Stater[Writer[O, ?], A, (A, List[O]), List[O]] = new Stater[Writer[O, ?], A, (A, List[O]), List[O]] {
       val init = List[O]()
-      def apply[X](x: Writer[O, X], l: List[O]) = l :+ x.value
+      def apply[X](x: Writer[O, X], l: List[O]) = (().asInstanceOf[X], l :+ x.value)
       def couple(a: A, l: List[O]) = (a, l)
 
     }

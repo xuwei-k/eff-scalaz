@@ -1,6 +1,6 @@
 package org.specs2.example
 
-import org.specs2.control.{Effects, Eff, Member, Writer, Put}
+import org.specs2.control.{Effects, Eff, Member, Writer, Write}
 import Effects._
 import Eff._
 import scalaz.{Reader => _, Writer => _, _}, Scalaz._
@@ -38,7 +38,7 @@ object ConsoleEff {
   def runConsoleToPrinter[R <: Effects, A](printer: String => Unit): Eff[Console <:: R, A] => Eff[R, A] = {
     val putRest = new EffBind[Console, R, A] {
       def apply[X](w: Console[X])(continuation: X => Eff[R, A]): Eff[R, A] = Tag.unwrap(w) match {
-        case p@Put(m) => printer(p.value); continuation(())
+        case p@Write(m) => printer(p.value); continuation(())
       }
     }
 

@@ -88,7 +88,7 @@ object Eff {
 
     trait Stater[M[_], A, B, S] {
     val init: S
-    def apply[X](x: M[X], s: S): S
+    def apply[X](x: M[X], s: S): (X, S)
     def couple(a: A, s: S): B
   }
 
@@ -99,9 +99,10 @@ object Eff {
       else {
         val i = eff.asInstanceOf[Impure[M <:: R, A]]
         val d = decompose[M, R, A](i.union.asInstanceOf[Union[M <:: R, A]])
-        if (d.toOption.isDefined)
-          loop(i.continuation(()), stater(d.toOption.get, s))
-        else {
+        if (d.toOption.isDefined) {
+          val (x, s1) = stater(d.toOption.get, s)
+          loop(i.continuation(x), s1)
+        } else {
           val u = d.toEither.left.toOption.get
           Impure[R, B](u.asInstanceOf[Union[R, Any]], Arrs.singleton(x => loop(i.continuation(x), s)))
         }
