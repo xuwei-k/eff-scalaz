@@ -3,12 +3,12 @@ package control
 
 import Eff._
 import Effects._
-import Reader._
+import ReaderEffect._
 import Writer._
 import Eval.runEval
 import com.ambiata.disorder.PositiveIntSmall
 import org.scalacheck._, Arbitrary._
-import scalaz.{Reader=>_, Writer=>_,_}, Scalaz._
+import scalaz.{Writer=>_,_}, Scalaz._
 import scalacheck.ScalazProperties._
 
 class EffSpec extends Specification with ScalaCheck { def is = s2"""
@@ -117,9 +117,9 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
       Member.MemberNatIsMember
 
     val list = (1 to 5000).toList
-    val action = list.traverseU(i => Reader.ask[E, String])
+    val action = list.traverseU(i => ReaderEffect.ask[E, String])
 
-    run(Reader.runReader("h")(action)) ==== list.map(_ => "h")
+    run(ReaderEffect.runReader("h")(action)) ==== list.map(_ => "h")
   }
 
   /**

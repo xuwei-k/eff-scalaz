@@ -5,11 +5,11 @@ import com.ambiata.disorder._
 import Effects._
 import Eff._
 import Checked._
-import Reader._
+import ReaderEffect._
 import Member._
 import MemberNat._
 
-import scalaz.{Reader=>_, _}, Scalaz._
+import scalaz._, Scalaz._
 
 class CheckedSpec extends Specification with ScalaCheck { def is = s2"""
 

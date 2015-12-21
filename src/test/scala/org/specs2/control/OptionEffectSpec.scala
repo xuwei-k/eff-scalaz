@@ -5,9 +5,9 @@ import com.ambiata.disorder._
 import OptionEffect._
 import Eff._
 import Effects._
-import Reader._
+import ReaderEffect._
 
-import scalaz.{Reader=>_,_}, Scalaz._
+import scalaz._, Scalaz._
 
 class OptionEffectSpec extends Specification with ScalaCheck { def is = s2"""
 
