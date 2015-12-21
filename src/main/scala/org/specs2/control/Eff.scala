@@ -13,10 +13,8 @@ import Member._
  */
 sealed trait Eff[R, A]
 
-case class Pure[R, A](private val run: () => A) extends Eff[R, A] {
-  def value: A =
-    run()
-}
+case class Pure[R, A](value: A) extends Eff[R, A]
+
 case class Impure[R, A](union: Union[R, Any], continuation: Arrs[R, Any, A]) extends Eff[R, A]
 
 object Eff {
@@ -25,7 +23,7 @@ object Eff {
 
   implicit def EffMonad[R]: Monad[Eff[R, ?]] = new Monad[Eff[R, ?]] {
     def point[A](a: => A): Eff[R, A] =
-      Pure(() => a)
+      Pure(a)
 
     def bind[A, B](fa: Eff[R, A])(f: A => Eff[R, B]): Eff[R, B] =
       fa match {
@@ -45,8 +43,8 @@ object Eff {
   def unit[R]: Eff[R, Unit] =
     EffMonad.point(())
 
-  def pure[R, A](run: =>A): Eff[R, A] =
-    Pure(() => run)
+  def pure[R, A](a: A): Eff[R, A] =
+    Pure(a)
 
   def impure[R, A, X](union: Union[R, X], continuation: Arrs[R, X, A]): Eff[R, A] =
     Impure(union.asInstanceOf[Union[R, Any]], continuation.asInstanceOf[Arrs[R, Any, A]])
