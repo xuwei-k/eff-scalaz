@@ -2,7 +2,7 @@ package org.specs2.example
 
 import org.specs2.control.DisjunctionEffect._
 import org.specs2.control.EvalEffect._
-import org.specs2.control.{Effects, Eff, DisjunctionErrorEffect, Member, MemberNat, EvalEffect, EffectsNil, Pure, Impure}
+import org.specs2.control.{Effects, Eff, DisjunctionErrorEffect, Member, MemberNat, EvalEffect, NoEffect, Pure, Impure}
 import Effects._, Eff._
 
 import scala.util.control.NonFatal
@@ -25,13 +25,13 @@ import MemberNat._
  *
  * For example
  *
- *  DisjunctionString <:: Console <:: Warnings <:: Eval <:: EffectsNil
+ *  DisjunctionString |: Console |: Warnings |: Eval |: EffectsNil
  *
  *  will return warnings *and* failures: (String \/ A, Vector[String])
  *
  * Whereas
  *
- *  Console <:: Warnings <:: DisjunctionString <:: Eval <:: EffectsNil
+ *  Console |: Warnings |: DisjunctionString |: Eval |: EffectsNil
  *
  *  will return not warnings if there is a failure: String \/ (A, Vector[String])
  *
@@ -40,7 +40,7 @@ import MemberNat._
  */
 object Action {
 
-  type ActionStack = DisjunctionError <:: Console <:: Warnings <:: Eval <:: EffectsNil
+  type ActionStack = DisjunctionError |: Console |: Warnings |: Eval |: NoEffect
 
   implicit def EvalMember: Member[Eval, ActionStack] =
     Member.MemberNatIsMember

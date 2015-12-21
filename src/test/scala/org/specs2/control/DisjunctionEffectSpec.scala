@@ -22,7 +22,7 @@ class DisjunctionEffectSpec extends Specification with ScalaCheck { def is = s2"
 """
 
   def disjunctionMonad = {
-    type S = DisjunctionString <:: EffectsNil
+    type S = DisjunctionString |: NoEffect
 
     implicit def DisjunctionStack: Member[DisjunctionString, S] =
       Member.MemberNatIsMember
@@ -37,7 +37,7 @@ class DisjunctionEffectSpec extends Specification with ScalaCheck { def is = s2"
   }
 
   def disjunctionWithKoMonad = {
-    type S = DisjunctionString <:: EffectsNil
+    type S = DisjunctionString |: NoEffect
 
     implicit def DisjunctionStack: Member[DisjunctionString, S] =
       Member.MemberNatIsMember
@@ -55,7 +55,7 @@ class DisjunctionEffectSpec extends Specification with ScalaCheck { def is = s2"
 
     // define a Reader / Disjunction stack
     type ReaderLong[A] = Reader[Long, A]
-    type Stack = DisjunctionString <:: ReaderLong <:: EffectsNil
+    type Stack = DisjunctionString |: ReaderLong |: NoEffect
 
     implicit def ReaderStack: Member[ReaderLong, Stack] =
       Member.MemberNatIsMember
@@ -80,7 +80,7 @@ class DisjunctionEffectSpec extends Specification with ScalaCheck { def is = s2"
   type DisjunctionString[A] = Disjunction[String, A]
 
   def stacksafeRun = {
-    type E = DisjunctionString <:: EffectsNil
+    type E = DisjunctionString |: NoEffect
     implicit def DisjunctionStringMember: Member[DisjunctionString, E] =
       Member.MemberNatIsMember
 

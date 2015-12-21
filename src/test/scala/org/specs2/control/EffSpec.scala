@@ -30,7 +30,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
   def readerMonadPure = prop { (initial: Int) =>
     type R[A] = Reader[Int, A]
-    type S = R <:: EffectsNil
+    type S = R |: NoEffect
 
     implicit def ReaderStackMember: Member[R, S] =
       Member.MemberNatIsMember
@@ -40,7 +40,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
   def readerMonadBind = prop { (initial: Int) =>
     type R[A] = Reader[Int, A]
-    type S = R <:: EffectsNil
+    type S = R |: NoEffect
 
     implicit def ReaderStackMember: Member[R, S] =
       Member.MemberNatIsMember
@@ -56,7 +56,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
   def writerTwice = prop { _ : Int =>
     type W[A] = Writer[String, A]
-    type S = W <:: EffectsNil
+    type S = W |: NoEffect
 
     implicit def WriterStackMember: Member[W, S] =
       Member.MemberNatIsMember
@@ -75,7 +75,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     // define a Reader / Writer stack
     type W[A] = Writer[String, A]
     type R[A] = Reader[Int, A]
-    type S = W <:: R <:: EffectsNil
+    type S = W |: R |: NoEffect
 
     implicit def ReaderStackMember: Member[R, S] =
       Member.MemberNatIsMember
@@ -100,7 +100,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
   def stacksafeWriter = {
     type WriterString[A] = Writer[String, A]
-    type E = WriterString <:: EffectsNil
+    type E = WriterString |: NoEffect
     implicit def WriterStringMember: Member[WriterString, E] =
       Member.MemberNatIsMember
 
@@ -112,7 +112,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
   def stacksafeReader = {
     type ReaderString[A] = Reader[String, A]
-    type E = ReaderString <:: EffectsNil
+    type E = ReaderString |: NoEffect
     implicit def ReaderStringMember: Member[ReaderString, E] =
       Member.MemberNatIsMember
 
@@ -125,7 +125,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
   /**
    * Helpers
    */
-   type F[A] = Eff[EffectsNil, A]
+   type F[A] = Eff[NoEffect, A]
 
    implicit def EffEqual[A]: Equal[F[A]] = new Equal[F[A]] {
      def equal(a1: F[A], a2: F[A]): Boolean =
@@ -134,12 +134,12 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
    implicit def ArbitraryEff: Arbitrary[F[Int]] = Arbitrary[F[Int]] {
      Gen.oneOf(
-       Gen.choose(0, 100).map(i => EffMonad[EffectsNil].point(i)),
-       Gen.choose(0, 100).map(i => EffMonad[EffectsNil].point(i).map(_ + 10))
+       Gen.choose(0, 100).map(i => EffMonad[NoEffect].point(i)),
+       Gen.choose(0, 100).map(i => EffMonad[NoEffect].point(i).map(_ + 10))
      )
    }
 
    implicit def ArbitraryEffFunction: Arbitrary[F[Int => Int]] =
-     Arbitrary(arbitrary[Int => Int].map(f => EffMonad[EffectsNil].point(f)))
+     Arbitrary(arbitrary[Int => Int].map(f => EffMonad[NoEffect].point(f)))
 
 }

@@ -17,16 +17,16 @@ import Effects._
 trait Union[R, A]
 
 object Union {
-  def now[T[_], R <: Effects, A](ta: T[A]): Union[T <:: R, A] =
+  def now[T[_], R <: Effects, A](ta: T[A]): Union[T |: R, A] =
     UnionNow(ta)
 
-  def next[T[_], O[_], R <: Effects, A](u: Union[R, A]): Union[O <:: R, A] =
+  def next[T[_], O[_], R <: Effects, A](u: Union[R, A]): Union[O |: R, A] =
     UnionNext(u)
 }
 
-case class UnionNow[T[_], R <: Effects, A](ta: T[A]) extends Union[T <:: R, A]
+case class UnionNow[T[_], R <: Effects, A](ta: T[A]) extends Union[T |: R, A]
 
-case class UnionNext[T[_], O[_], R <: Effects, A](u: Union[R, A]) extends Union[O <:: R, A]
+case class UnionNext[T[_], O[_], R <: Effects, A](u: Union[R, A]) extends Union[O |: R, A]
 
 // data P (n::Nat) = P
 case class P[N <: Nat]()
@@ -69,13 +69,13 @@ object MemberNat {
    * The idea is that:
    *
    *  - if T is an effect
-   *  - then it is the first effect of T <:: R
+   *  - then it is the first effect of T |: R
    */
-  implicit def ZeroMemberNat[T[_], R <: Effects]: MemberNat[T, T <:: R, Zero] = new MemberNat[T, T <:: R, Zero] {
-    def inject[V](rank: P[Zero], effect: T[V]): Union[T <:: R, V] =
+  implicit def ZeroMemberNat[T[_], R <: Effects]: MemberNat[T, T |: R, Zero] = new MemberNat[T, T |: R, Zero] {
+    def inject[V](rank: P[Zero], effect: T[V]): Union[T |: R, V] =
       Union.now(effect)
 
-    def project[V](predicate: P[Zero], union: Union[T <:: R, V]): Option[T[V]] =
+    def project[V](predicate: P[Zero], union: Union[T |: R, V]): Option[T[V]] =
       union match {
         case UnionNow(x) => Some(x)
         case _ => None
@@ -91,21 +91,21 @@ object MemberNat {
    * Injection and projection for rank S(N)
    *
    * r' == R
-   * r  == O <:: R
+   * r  == O |: R
    * t  == T
    * t' == O
    *
    * The idea is that:
    *
    *  - if T is one effect of R for a given N
-   *  - then T is one effect of O <:: R for S[N]
+   *  - then T is one effect of O |: R for S[N]
    *
    */
-  implicit def SuccessorMemberNat[T[_], O[_], R <: Effects, N <: Nat](implicit m: MemberNat[T, R, N]): MemberNat[T, O <:: R, Succ[N]] = new MemberNat[T, O <:: R, Succ[N]] {
+  implicit def SuccessorMemberNat[T[_], O[_], R <: Effects, N <: Nat](implicit m: MemberNat[T, R, N]): MemberNat[T, O |: R, Succ[N]] = new MemberNat[T, O |: R, Succ[N]] {
     def inject[V](predicate: P[Succ[N]], effect: T[V]) =
       Union.next(m.inject[V](P[N](), effect))
 
-    def project[V](predicate: P[Succ[N]], union: Union[O <:: R, V]) =
+    def project[V](predicate: P[Succ[N]], union: Union[O |: R, V]) =
       union match {
         case UnionNow(_) => None
         case UnionNext(u) => m.project[V](P[N](), u)
@@ -156,7 +156,7 @@ object Member {
    *
    * Extract the first effect from a list of effects if present
    */
-  def decompose[T[_], R <: Effects, V](u: Union[T <:: R, V]): Union[R, V] \/ T[V] =
+  def decompose[T[_], R <: Effects, V](u: Union[T |: R, V]): Union[R, V] \/ T[V] =
     u match {
       case UnionNow(tv)     => tv.right
       case UnionNext(union) => union.left

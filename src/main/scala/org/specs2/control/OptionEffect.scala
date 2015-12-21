@@ -15,7 +15,7 @@ object OptionEffect {
   def some[R, A](a: A)(implicit member: Member[Option[?], R]): Eff[R, A] =
     impure(member.inject(Some(a)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
 
-  def runOption[R <: Effects, A](r: Eff[Option[?] <:: R, A]): Eff[R, Option[A]] = {
+  def runOption[R <: Effects, A](r: Eff[Option[?] |: R, A]): Eff[R, Option[A]] = {
     val recurse = new Recurse[Option, R, Option[A]] {
       def apply[X](m: Option[X]) =
         m match {

@@ -1,7 +1,7 @@
 package org.specs2.control
 
 import org.specs2.Specification
-import org.specs2.control.Effects.<::
+import org.specs2.control.Effects.|:
 import Member._
 import scala.collection.mutable.ListBuffer
 import EvalEffect._
@@ -19,10 +19,11 @@ class EvalEffectSpec extends Specification { def is = s2"""
    if the first is not successful, the second is executed $orElse2
 
  run is stack safe with Eval   $stacksafeRun
-                                                   |
+
 """
 
-  type R = Eval <:: EffectsNil
+  type R = Eval |: NoEffect
+
   def andFinallyOk = {
 
     val messages: ListBuffer[String] = new ListBuffer[String]
@@ -80,7 +81,7 @@ class EvalEffectSpec extends Specification { def is = s2"""
   }
 
   def stacksafeRun = {
-    type E = Eval <:: EffectsNil
+    type E = Eval |: NoEffect
 
     val list = (1 to 5000).toList
     val action = list.traverseU(i => EvalEffect.delay[E, Int](i))
@@ -89,7 +90,7 @@ class EvalEffectSpec extends Specification { def is = s2"""
   }
 
   def stacksafeAttempt = {
-    type E = Eval <:: EffectsNil
+    type E = Eval |: NoEffect
 
     val list = (1 to 5000).toList
     val action = list.traverseU(i => EvalEffect.delay[E, Int](i))

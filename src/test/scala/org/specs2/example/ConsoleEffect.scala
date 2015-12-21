@@ -29,13 +29,13 @@ object ConsoleEffect {
   /**
    * This interpreter prints messages to the console
    */
-  def runConsole[R <: Effects, A](w: Eff[Console <:: R, A]): Eff[R, A] =
+  def runConsole[R <: Effects, A](w: Eff[Console |: R, A]): Eff[R, A] =
     runConsoleToPrinter(m => println(m))(w)
 
   /**
    * This interpreter prints messages to a printing function
    */
-  def runConsoleToPrinter[R <: Effects, A](printer: String => Unit): Eff[Console <:: R, A] => Eff[R, A] = {
+  def runConsoleToPrinter[R <: Effects, A](printer: String => Unit): Eff[Console |: R, A] => Eff[R, A] = {
     val recurse = new StateRecurse[Console, A, A] {
       type S = Unit
       val init = ()

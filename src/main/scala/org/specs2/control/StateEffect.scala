@@ -16,7 +16,7 @@ object StateEffect {
   def get[R, S](implicit member: Member[State[S, ?], R]): Eff[R, S] =
     send[State[S, ?], R, S](Scalaz.get)
 
-  def runState[R <: Effects, S1, A](initial: S1)(w: Eff[State[S1, ?] <:: R, A]): Eff[R, (A, S1)] = {
+  def runState[R <: Effects, S1, A](initial: S1)(w: Eff[State[S1, ?] |: R, A]): Eff[R, (A, S1)] = {
     val recurse: StateRecurse[State[S1, ?], A, (A, S1)] = new StateRecurse[State[S1, ?], A, (A, S1)] {
       type S = S1
       val init = initial

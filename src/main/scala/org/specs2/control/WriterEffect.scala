@@ -17,7 +17,7 @@ object WriterEffect {
     // the type annotation is necessary here to prevent a compiler error
     send[Writer[O, ?], R, Unit](write(o))
 
-  def runWriter[R <: Effects, O, A](w: Eff[Writer[O, ?] <:: R, A]): Eff[R, (A, List[O])] = {
+  def runWriter[R <: Effects, O, A](w: Eff[Writer[O, ?] |: R, A]): Eff[R, (A, List[O])] = {
     val recurse: StateRecurse[Writer[O, ?], A, (A, List[O])] = new StateRecurse[Writer[O, ?], A, (A, List[O])] {
       type S = List[O]
       val init = List[O]()

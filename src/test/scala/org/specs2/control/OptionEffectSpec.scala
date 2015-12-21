@@ -20,7 +20,7 @@ class OptionEffectSpec extends Specification with ScalaCheck { def is = s2"""
 """
 
   def optionMonad = {
-    type S = Option <:: EffectsNil
+    type S = Option |: NoEffect
 
     val option: Eff[S, String] =
       for {
@@ -32,7 +32,7 @@ class OptionEffectSpec extends Specification with ScalaCheck { def is = s2"""
   }
 
   def optionWithNothingMonad = {
-    type S = Option <:: EffectsNil
+    type S = Option |: NoEffect
 
     val option: Eff[S, String] =
       for {
@@ -47,7 +47,7 @@ class OptionEffectSpec extends Specification with ScalaCheck { def is = s2"""
 
     // define a Reader / Option stack
     type R[A] = Reader[Int, A]
-    type S = Option <:: R <:: EffectsNil
+    type S = Option |: R |: NoEffect
     import Member._
 
     implicit def ReaderStackMember: Member[R, S] =
@@ -68,7 +68,7 @@ class OptionEffectSpec extends Specification with ScalaCheck { def is = s2"""
   }
 
   def stacksafeOption = {
-    type E = Option <:: EffectsNil
+    type E = Option |: NoEffect
     implicit def OptionMember: Member[Option, E] =
       Member.MemberNatIsMember
 

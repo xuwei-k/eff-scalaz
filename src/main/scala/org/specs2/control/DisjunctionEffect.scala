@@ -16,7 +16,7 @@ object DisjunctionEffect {
   def right[R, E, A](a: A)(implicit member: Member[(E \/ ?), R]): Eff[R, A] =
     impure(member.inject(\/-(a)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
 
-  def runDisjunction[R <: Effects, E, A](r: Eff[(E \/ ?) <:: R, A]): Eff[R, E \/ A] = {
+  def runDisjunction[R <: Effects, E, A](r: Eff[(E \/ ?) |: R, A]): Eff[R, E \/ A] = {
     val recurse = new Recurse[(E \/ ?), R, E \/ A] {
       def apply[X](m: E \/ X) =
         m match {
@@ -28,7 +28,7 @@ object DisjunctionEffect {
     interpret1[R, (E \/ ?), A, E \/ A]((a: A) => \/-(a))(recurse)(r)
   }
 
-  def runDisjunctionEither[R <: Effects, E, A](r: Eff[(E \/ ?) <:: R, A]): Eff[R, Either[E, A]] =
+  def runDisjunctionEither[R <: Effects, E, A](r: Eff[(E \/ ?) |: R, A]): Eff[R, Either[E, A]] =
     runDisjunction(r).map(_.fold(Left.apply, Right.apply))
 
 }

@@ -19,7 +19,7 @@ object WarningsEffect {
   /**
    * This interpreter cumulates warnings
    */
-  def runWarnings[R <: Effects, A](w: Eff[Warnings <:: R, A]): Eff[R, (A, Vector[String])] = {
+  def runWarnings[R <: Effects, A](w: Eff[Warnings |: R, A]): Eff[R, (A, Vector[String])] = {
     val recurse = new StateRecurse[Warnings, A, (A, Vector[String])] {
       type S = Vector[String]
       val init = Vector()
