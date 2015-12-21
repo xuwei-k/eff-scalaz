@@ -4,11 +4,11 @@ import org.specs2.Specification
 import org.specs2.control.Effects.<::
 import Member._
 import scala.collection.mutable.ListBuffer
-import Eval._
+import EvalEffect._
 import Eff._
 import scalaz._, Scalaz._
 
-class EvalSpec extends Specification { def is = s2"""
+class EvalEffectSpec extends Specification { def is = s2"""
 
  An action can be evaluated after another
    when the first action is ok   $andFinallyOk
@@ -28,10 +28,10 @@ class EvalSpec extends Specification { def is = s2"""
     val messages: ListBuffer[String] = new ListBuffer[String]
 
     val action =
-      Eval.delay[R, Unit](messages.append("first"))
+      EvalEffect.delay[R, Unit](messages.append("first"))
 
     val all: Eff[R, Unit] =
-      action.andFinally(Eval.delay(messages.append("final")))
+      action.andFinally(EvalEffect.delay(messages.append("final")))
 
     run(runEval(all))
 
@@ -43,10 +43,10 @@ class EvalSpec extends Specification { def is = s2"""
     val messages: ListBuffer[String] = new ListBuffer[String]
 
     val action =
-      Eval.delay[R, Unit] { throw new Exception("boom"); messages.append("first") }
+      EvalEffect.delay[R, Unit] { throw new Exception("boom"); messages.append("first") }
 
     val all: Eff[R, Unit] =
-      action.andFinally(Eval.delay(messages.append("final")))
+      action.andFinally(EvalEffect.delay(messages.append("final")))
 
     run(attemptEval(all))
 
@@ -57,10 +57,10 @@ class EvalSpec extends Specification { def is = s2"""
     val messages: ListBuffer[String] = new ListBuffer[String]
 
     val action =
-      Eval.delay[R, Int] { messages.append("first"); 1 }
+      EvalEffect.delay[R, Int] { messages.append("first"); 1 }
 
     val all: Eff[R, Int] =
-      action.orElse(Eval.delay { messages.append("second"); 2 })
+      action.orElse(EvalEffect.delay { messages.append("second"); 2 })
 
     (run(runEval(all)) === 1) and
     (messages.toList === List("first"))
@@ -70,10 +70,10 @@ class EvalSpec extends Specification { def is = s2"""
     val messages: ListBuffer[String] = new ListBuffer[String]
 
     val action =
-      Eval.delay[R, Int] { throw new Exception("boom"); messages.append("first"); 1 }
+      EvalEffect.delay[R, Int] { throw new Exception("boom"); messages.append("first"); 1 }
 
     val all: Eff[R, Int] =
-      action.orElse(Eval.delay { messages.append("second"); 2 })
+      action.orElse(EvalEffect.delay { messages.append("second"); 2 })
 
     (run(runEval(all)) === 2) and
     (messages.toList === List("second"))
@@ -83,7 +83,7 @@ class EvalSpec extends Specification { def is = s2"""
     type E = Eval <:: EffectsNil
 
     val list = (1 to 5000).toList
-    val action = list.traverseU(i => Eval.delay[E, Int](i))
+    val action = list.traverseU(i => EvalEffect.delay[E, Int](i))
 
     run(runEval(action)) ==== list
   }
@@ -92,7 +92,7 @@ class EvalSpec extends Specification { def is = s2"""
     type E = Eval <:: EffectsNil
 
     val list = (1 to 5000).toList
-    val action = list.traverseU(i => Eval.delay[E, Int](i))
+    val action = list.traverseU(i => EvalEffect.delay[E, Int](i))
 
     run(attemptEval(action)) ==== \/-(list)
   }

@@ -1,8 +1,8 @@
 package org.specs2.example
 
 import org.specs2.control.DisjunctionEffect._
-import org.specs2.control.Eval._
-import org.specs2.control.{Effects, Eff, DisjunctionErrorEffect, Member, MemberNat, Eval, EffectsNil, Pure, Impure}
+import org.specs2.control.EvalEffect._
+import org.specs2.control.{Effects, Eff, DisjunctionErrorEffect, Member, MemberNat, EvalEffect, EffectsNil, Pure, Impure}
 import Effects._, Eff._
 
 import scala.util.control.NonFatal

@@ -5,7 +5,7 @@ import Eff._
 import Effects._
 import ReaderEffect._
 import WriterEffect._
-import Eval.runEval
+import EvalEffect.runEval
 import com.ambiata.disorder.PositiveIntSmall
 import org.scalacheck._, Arbitrary._
 import scalaz._, Scalaz._

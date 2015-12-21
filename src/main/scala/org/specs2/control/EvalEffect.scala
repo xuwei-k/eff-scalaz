@@ -10,23 +10,19 @@ import scalaz.effect.IO
 
 /**
  * Effect for delayed computations
+ *
+ * uses scalaz.Name as a data structure
+ *
  */
-object Eval {
+object EvalEffect {
 
-  sealed trait Eval[A] {
-    def value: A
-  }
-
-  case class Evaluate[A](v: () => A) extends Eval[A] {
-    def value: A =
-      v()
-  }
+   type Eval[A] = Name[A]
 
   def now[R, A](a: A)(implicit m: Member[Eval, R]): Eff[R, A] =
     pure(a)
 
   def delay[R, A](a: =>A)(implicit m: Member[Eval, R]): Eff[R, A] =
-    impure(m.inject(Evaluate[A](() => a)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
+    impure(m.inject(Name(a)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
 
   def evalIO[R, A](a: IO[A])(implicit m: Member[Eval, R]): Eff[R, A] =
     delay(a.unsafePerformIO)
@@ -51,10 +47,10 @@ object Eval {
 
   implicit class AndFinally[R, A](action: Eff[R, A]) {
     def andFinally(last: Eff[R, Unit])(implicit m: Eval <= R): Eff[R, A] =
-      Eval.andFinally(action, last)
+      EvalEffect.andFinally(action, last)
 
     def orElse(action2: Eff[R, A])(implicit m: Eval <= R): Eff[R, A] =
-      Eval.orElse(action, action2)
+      EvalEffect.orElse(action, action2)
   }
 
   /**
@@ -69,7 +65,7 @@ object Eval {
       case (Impure(u1, c1), Impure(u2, c2)) =>
         (m.project(u1), m.project(u2)) match {
           case (Some(e1), Some(e2)) =>
-            Eval.delay { try e1.value.asInstanceOf[A] finally { e2.value; () } }
+            EvalEffect.delay { try e1.value.asInstanceOf[A] finally { e2.value; () } }
 
           case _ => action
         }
@@ -83,7 +79,7 @@ object Eval {
   def orElse[R, A](action1: Eff[R, A], action2: Eff[R, A])(implicit m: Eval <= R): Eff[R, A] =
     (action1, action2) match {
       case (p1@Pure(_), _) =>
-        try Eval.now(p1.value)
+        try EvalEffect.now(p1.value)
         catch { case _ : Throwable => action2 }
 
       case (Impure(u1, c1), _) =>

@@ -2,8 +2,8 @@ package org.specs2
 package example
 
 import Action._
-import control.{DisjunctionErrorEffect, Eval, Member, Eff, DisjunctionEffect}
-import Eval._
+import control.{DisjunctionErrorEffect, EvalEffect, Member, Eff, DisjunctionEffect}
+import EvalEffect._
 import WarningsEffect._
 import ConsoleEffect._
 import DisjunctionErrorEffect._
