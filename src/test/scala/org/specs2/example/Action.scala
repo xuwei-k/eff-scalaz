@@ -1,15 +1,15 @@
 package org.specs2.example
 
-import org.specs2.control.Checked._
+import org.specs2.control.DisjunctionEffect._
 import org.specs2.control.Eval._
-import org.specs2.control.{Effects, Eff, CheckedErrorEff, Member, MemberNat, Eval, EffectsNil, Pure, Impure}
+import org.specs2.control.{Effects, Eff, DisjunctionErrorEffect, Member, MemberNat, Eval, EffectsNil, Pure, Impure}
 import Effects._, Eff._
 
 import scala.util.control.NonFatal
 import scalaz.{Reader => _, Writer => _, _}, Scalaz._
-import WarningsEff._
-import ConsoleEff._
-import CheckedErrorEff._
+import WarningsEffect._
+import ConsoleEffect._
+import DisjunctionErrorEffect._
 import Member._
 import MemberNat._
 
@@ -25,45 +25,45 @@ import MemberNat._
  *
  * For example
  *
- *  CheckedString <:: Console <:: Warnings <:: Eval <:: EffectsNil
+ *  DisjunctionString <:: Console <:: Warnings <:: Eval <:: EffectsNil
  *
- *  will return warnings *and* failures: (Either[String, A], Vector[String])
+ *  will return warnings *and* failures: (String \/ A, Vector[String])
  *
  * Whereas
  *
- *  Console <:: Warnings <:: CheckedString <:: Eval <:: EffectsNil
+ *  Console <:: Warnings <:: DisjunctionString <:: Eval <:: EffectsNil
  *
- *  will return not warnings if there is a failure: Either[String, (A, Vector[String])]
+ *  will return not warnings if there is a failure: String \/ (A, Vector[String])
  *
  * Also note that Eval is the last effect which means that nothing get evaluated until we run the last interpreter
  *
  */
 object Action {
 
-  type ActionStack = CheckedError <:: Console <:: Warnings <:: Eval <:: EffectsNil
+  type ActionStack = DisjunctionError <:: Console <:: Warnings <:: Eval <:: EffectsNil
 
-  implicit def EvalEffect: Member[Eval, ActionStack] =
+  implicit def EvalMember: Member[Eval, ActionStack] =
     Member.MemberNatIsMember
 
-  implicit def WarningsEffect: Member[Warnings, ActionStack] =
+  implicit def WarningsMember: Member[Warnings, ActionStack] =
     Member.MemberNatIsMember
 
-  implicit def ConsoleEffect: Member[Console, ActionStack] =
+  implicit def ConsoleMember: Member[Console, ActionStack] =
     Member.MemberNatIsMember
 
-  implicit def CheckedErrorEffect: Member[CheckedError, ActionStack] =
+  implicit def DisjunctionErrorMember: Member[DisjunctionError, ActionStack] =
     Member.MemberNatIsMember
 
   /**
    * warn the user about something that is probably wrong on his side,
    * and then fail all other computations
    */
-  def warnAndFail[R <: Effects, A](message: String, failureMessage: String)(implicit m1: Warnings <= R, m2: CheckedError <= R): Eff[R, A] =
+  def warnAndFail[R <: Effects, A](message: String, failureMessage: String)(implicit m1: Warnings <= R, m2: DisjunctionError <= R): Eff[R, A] =
     warn(message)(m1) >>
     fail(failureMessage)
 
   def runAction[A](action: Eff[ActionStack, A], printer: String => Unit = s => ()): (Error \/ A, Vector[String]) =
-    run(runEval(runWarnings(runConsoleToPrinter(printer)(runChecked(action)))))
+    run(runEval(runWarnings(runConsoleToPrinter(printer)(runDisjunction(action)))))
 
 
 }

@@ -5,7 +5,7 @@ import Effects._
 import Eff._
 import scalaz._, Scalaz._
 
-object ConsoleEff {
+object ConsoleEffect {
 
   trait ConsoleTag
 

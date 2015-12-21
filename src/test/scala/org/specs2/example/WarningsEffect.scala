@@ -6,7 +6,7 @@ import org.specs2.control.Effects._
 import org.specs2.control.{Effects, Eff, Member, WriterEffect}
 import scalaz._
 
-object WarningsEff {
+object WarningsEffect {
 
   trait WarningsTag
 
