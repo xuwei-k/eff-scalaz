@@ -27,7 +27,9 @@ object Eff {
 
     def bind[A, B](fa: Eff[R, A])(f: A => Eff[R, B]): Eff[R, B] =
       fa match {
-        case p@Pure(_) => f(p.value)
+        case Pure(a) =>
+          f(a)
+
         case Impure(union, continuation) =>
           Impure(union, continuation.append(f))
       }
@@ -51,8 +53,8 @@ object Eff {
 
   def run[A](eff: Eff[NoEffect, A]): A =
     eff match {
-      case p@Pure(_) => p.value
-      case _         => sys.error("impossible")
+      case Pure(a) => a
+      case _       => sys.error("impossible")
     }
 
   trait Recurse[M[_], R, A] {
@@ -63,6 +65,7 @@ object Eff {
     val recurseState = new MonadicRecurse[M, A, Eff[R, B]] {
       type S = Unit
       val init = ()
+
       def apply[X](x: M[X], s: Unit): (X, Unit) \/ Eff[R, B] =
         recurse(x).leftMap((_, ()))
 
@@ -110,17 +113,19 @@ object Eff {
   def interpretMonadic[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], recurse: MonadicRecurse[M, A, Eff[R, B]])(effects: Eff[M |: R, A]): Eff[R, B] = {
     def loop(eff: Eff[M |: R, A], s: recurse.S): Eff[R, B] = {
       eff match {
-        case p @ Pure(_)   => recurse.finalize(p.value, s)
-        case i @ Impure(_,_) =>
-          decompose[M, R, A](i.union.asInstanceOf[Union[M |: R, A]]) match {
+        case Pure(a) =>
+          recurse.finalize(a, s)
+
+        case Impure(union, continuation) =>
+          decompose(union) match {
             case \/-(v) =>
               recurse(v, s) match {
                 case \/-(b)       => b
-                case -\/((x, s1)) => loop(i.continuation(x), s1)
+                case -\/((x, s1)) => loop(continuation(x), s1)
               }
 
-            case -\/(u) =>
-              Impure[R, B](u.asInstanceOf[Union[R, Any]], Arrs.singleton(x => loop(i.continuation(x), s)))
+            case -\/(u1) =>
+              Impure[R, B](u1, Arrs.singleton(x => loop(continuation(x), s)))
           }
       }
     }
@@ -153,7 +158,7 @@ case class Arrs[R, A, B] private(functions: Vector[Any => Eff[R, Any]]) {
 
         case f +: rest =>
           f(v) match {
-            case p: Pure[_,_] => go(rest, p.value)
+            case Pure(a1) => go(rest, a1)
             case Impure(u, q) => Impure[R, B](u, q.copy(functions = q.functions ++ rest))
           }
       }

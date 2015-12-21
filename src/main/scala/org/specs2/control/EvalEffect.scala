@@ -78,8 +78,8 @@ object EvalEffect {
    */
   def orElse[R, A](action1: Eff[R, A], action2: Eff[R, A])(implicit m: Eval <= R): Eff[R, A] =
     (action1, action2) match {
-      case (p1@Pure(_), _) =>
-        try EvalEffect.now(p1.value)
+      case (Pure(a), _) =>
+        try EvalEffect.now(a)
         catch { case _ : Throwable => action2 }
 
       case (Impure(u1, c1), _) =>

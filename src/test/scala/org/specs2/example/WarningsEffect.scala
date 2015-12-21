@@ -26,7 +26,7 @@ object WarningsEffect {
 
       def apply[X](x: Warnings[X], s: Vector[String]): (X, Vector[String]) =
         Tag.unwrap(x) match {
-          case w => (w.run._2.asInstanceOf[X], s :+ w.run._1)
+          case w => (w.run._2, s :+ w.run._1)
         }
 
       def finalize(a: A, s: Vector[String]): (A, Vector[String]) =
