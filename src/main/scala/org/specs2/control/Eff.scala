@@ -111,20 +111,19 @@ object Eff {
 
   def interpretMonadic[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], recurse: MonadicRecurse[M, A, Eff[R, B]])(effects: Eff[M <:: R, A]): Eff[R, B] = {
     def loop(eff: Eff[M <:: R, A], s: recurse.S): Eff[R, B] = {
-      if (eff.isInstanceOf[Pure[M <:: R, A]])
-         recurse.finalize(eff.asInstanceOf[Pure[M <:: R, A]].value, s)
-      else {
-        val i = eff.asInstanceOf[Impure[M <:: R, A]]
-        val d = decompose[M, R, A](i.union.asInstanceOf[Union[M <:: R, A]])
-        if (d.toOption.isDefined) {
-          recurse(d.toOption.get, s) match {
-            case \/-(b)       => b
-            case -\/((x, s1)) => loop(i.continuation(x), s1)
+      eff match {
+        case p @ Pure(_)   => recurse.finalize(p.value, s)
+        case i @ Impure(_,_) =>
+          decompose[M, R, A](i.union.asInstanceOf[Union[M <:: R, A]]) match {
+            case \/-(v) =>
+              recurse(v, s) match {
+                case \/-(b)       => b
+                case -\/((x, s1)) => loop(i.continuation(x), s1)
+              }
+
+            case -\/(u) =>
+              Impure[R, B](u.asInstanceOf[Union[R, Any]], Arrs.singleton(x => loop(i.continuation(x), s)))
           }
-        } else {
-          val u = d.toEither.left.toOption.get
-          Impure[R, B](u.asInstanceOf[Union[R, Any]], Arrs.singleton(x => loop(i.continuation(x), s)))
-        }
       }
     }
 
