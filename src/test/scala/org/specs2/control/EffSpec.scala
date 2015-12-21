@@ -21,8 +21,9 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
  run a reader/writer action $readerWriter
 
- The Eff monad is stack safe with Writer $stacksafeWriter
- The Eff monad is stack safe with Reader $stacksafeReader
+ The Eff monad is stack safe with Writer                 $stacksafeWriter
+ The Eff monad is stack safe with Reader                 $stacksafeReader
+ The Eff monad is stack safe with both Reader and Writer $stacksafeReaderWriter
 
 """
 
@@ -119,7 +120,25 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     val list = (1 to 5000).toList
     val action = list.traverseU(i => ReaderEffect.ask[E, String])
 
-    run(ReaderEffect.runReader("h")(action)) ==== list.map(_ => "h")
+    run(ReaderEffect.runReader("h")(action)) ==== list.as("h")
+  }
+
+  def stacksafeReaderWriter = {
+    type ReaderString[A] = Reader[String, A]
+    type WriterString[A] = Writer[String, A]
+
+    type E = ReaderString |: WriterString |: NoEffect
+
+    implicit def ReaderStringMember: Member[ReaderString, E] =
+      Member.MemberNatIsMember
+
+    implicit def WriterStringMember: Member[WriterString, E] =
+      Member.MemberNatIsMember
+
+    val list = (1 to 5000).toList
+    val action = list.traverseU(i => ReaderEffect.ask[E, String] >>= WriterEffect.tell[E, String])
+
+    run(WriterEffect.runWriter(ReaderEffect.runReader("h")(action))) ==== ((list.as(()), list.as("h")))
   }
 
   /**
