@@ -3,23 +3,15 @@ package org.specs2.control
 import Eff._
 import Effects._
 import Member._
+import scalaz._
 
 /**
  * Effect for logging values alongside computations
  */
-object Writer {
-
-  sealed trait Writer[O, X] {
-    def value: O
-  }
-
-  case class Write[O](o: O) extends Writer[O, Unit] {
-    def value: O =
-      o
-  }
+object WriterEffect {
 
   def write[O](o: O): Writer[O, Unit] =
-    Write(o)
+    Writer(o, ())
 
   def tell[R, O](o: O)(implicit member: Member[Writer[O, ?], R]): Eff[R, Unit] =
     // the type annotation is necessary here to prevent a compiler error
@@ -29,7 +21,7 @@ object Writer {
     val recurse: StateRecurse[Writer[O, ?], A, (A, List[O])] = new StateRecurse[Writer[O, ?], A, (A, List[O])] {
       type S = List[O]
       val init = List[O]()
-      def apply[X](x: Writer[O, X], l: List[O]) = (().asInstanceOf[X], l :+ x.value)
+      def apply[X](x: Writer[O, X], l: List[O]) = (x.run._2, l :+ x.run._1)
       def finalize(a: A, l: List[O]) = (a, l)
     }
 

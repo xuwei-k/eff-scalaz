@@ -1,10 +1,9 @@
 package org.specs2.example
 
-import org.specs2.control.{Effects, Eff, Member, Writer}
+import org.specs2.control.{Effects, Eff, Member, WriterEffect}
 import Effects._
 import Eff._
-import scalaz.{Reader => _, Writer => _, _}, Scalaz._
-import Writer._
+import scalaz._, Scalaz._
 
 object ConsoleEff {
 
@@ -13,7 +12,7 @@ object ConsoleEff {
   type Console[A] = Writer[String, A] @@ ConsoleTag
 
   def log[R](message: String, doIt: Boolean = true)(implicit m: Member[Console, R]): Eff[R, Unit] =
-    if (doIt) Writer.tell(message)(Member.untagMember[Writer[String, ?], R, ConsoleTag](m))
+    if (doIt) WriterEffect.tell(message)(Member.untagMember[Writer[String, ?], R, ConsoleTag](m))
     else      EffMonad.point(())
 
   def logThrowable[R](t: Throwable, doIt: Boolean = true)(implicit m: Member[Console, R]): Eff[R, Unit] =
@@ -43,7 +42,7 @@ object ConsoleEff {
 
       def apply[X](x: Console[X], s: Unit): (X, Unit) =
         Tag.unwrap(x) match {
-          case p@Write(m) => (printer(m), ())
+          case w => (w.run._2, printer(w.run._1))
         }
 
       def finalize(a: A, s: Unit): A =

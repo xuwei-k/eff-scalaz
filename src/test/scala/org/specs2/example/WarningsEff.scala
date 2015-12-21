@@ -3,9 +3,8 @@ package example
 
 import org.specs2.control.Eff._
 import org.specs2.control.Effects._
-import org.specs2.control.{Effects, Eff, Member, Writer}
-import Writer._
-import scalaz.{Reader => _, Writer => _, _}
+import org.specs2.control.{Effects, Eff, Member, WriterEffect}
+import scalaz._
 
 object WarningsEff {
 
@@ -15,7 +14,7 @@ object WarningsEff {
 
   /** warn the user about something that is probably wrong on his side, this is not a specs2 bug */
   def warn[R](message: String)(implicit m: Member[Warnings, R]): Eff[R, Unit] =
-    Writer.tell(message)(Member.untagMember[Writer[String, ?], R, WarningsTag](m))
+    WriterEffect.tell(message)(Member.untagMember[Writer[String, ?], R, WarningsTag](m))
 
   /**
    * This interpreter cumulates warnings
@@ -27,7 +26,7 @@ object WarningsEff {
 
       def apply[X](x: Warnings[X], s: Vector[String]): (X, Vector[String]) =
         Tag.unwrap(x) match {
-          case p@Write(_) => (().asInstanceOf[X], s :+ p.value)
+          case w => (w.run._2.asInstanceOf[X], s :+ w.run._1)
         }
 
       def finalize(a: A, s: Vector[String]): (A, Vector[String]) =
