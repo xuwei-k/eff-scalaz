@@ -19,7 +19,8 @@ object build extends Build {
       depend.scalaz     ++
       depend.specs2     ++
       depend.disorder
-    )
+    ) ++
+    Seq(resolvers := depend.resolvers)
 
   lazy val projectSettings: Seq[Settings] = Seq(
     name := "eff",
