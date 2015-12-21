@@ -46,4 +46,38 @@ object DisjunctionErrorEffect {
 
   def exception[R, A](t: Throwable)(implicit m: DisjunctionError <= R): Eff[R, A] =
     DisjunctionEffect.left[R, Error, A](-\/(t))
+
+
+  implicit class Errored[A](c: Error \/ A) {
+    def toOptionErrorMessage: Option[String] =
+      c match {
+        case -\/(-\/(t)) => Some(renderWithStack(t))
+        case -\/(\/-(m)) => Some(m)
+        case \/-(_)      => None
+      }
+  }
+
+  def render(t: Throwable): String =
+    s"Error[${t.getClass.getName}]" + (Option(t.getMessage) match {
+      case None          => ""
+      case Some(message) => s" ${message}"
+    })
+
+  def renderWithStack(t: Throwable): String =
+    s"""============================================================
+       |${render(t)}
+       |------------------------------------------------------------
+       |${traceWithIndent(t, "    ")}
+       |============================================================
+       |""".stripMargin
+
+  def trace(t: Throwable): String =  {
+    val out = new java.io.StringWriter
+    t.printStackTrace(new java.io.PrintWriter(out))
+    out.toString
+  }
+
+  def traceWithIndent(t: Throwable, indent: String): String =
+    trace(t).lines.map(line => indent + line).mkString("\n")
+
 }
