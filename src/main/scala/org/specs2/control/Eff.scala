@@ -62,7 +62,8 @@ object Eff {
   }
 
   def interpret[R <: Effects, M[_], A, B](pure: A => Eff[R, B], recurse: Recurse[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] = {
-    val recurseState = new StateExitRecurse[R, M, A, B, Unit] {
+    val recurseState = new MonadicRecurse[M, A, Eff[R, B]] {
+      type S = Unit
       val init = ()
       def apply[X](x: M[X], s: Unit): (X, Unit) \/ Eff[R, B] =
         recurse(x).leftMap((_, ()))
@@ -70,40 +71,46 @@ object Eff {
       def finalize(a: A, s: Unit): Eff[R, B] =
         pure(a)
     }
-    interpretStateExit(pure, recurseState)(effects)
+    interpretMonadic(pure, recurseState)(effects)
   }
 
   def interpret1[R <: Effects, M[_], A, B](pure: A => B)(recurse: Recurse[M, R, B])(effects: Eff[M <:: R, A]): Eff[R, B] =
     interpret((a: A) => EffMonad[R].point(pure(a)), recurse)(effects)
 
-  trait StateRecurse[M[_], A, B, S] {
+  trait StateRecurse[M[_], A, B] {
+    type S
     val init: S
     def apply[X](x: M[X], s: S): (X, S)
     def finalize(a: A, s: S): B
   }
 
-  def interpretState[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], recurse: StateRecurse[M, A, B, S])(effects: Eff[M <:: R, A]): Eff[R, B] = {
-    val recurseExit = new StateExitRecurse[R, M, A, B, S] {
+  def interpretState[R <: Effects, M[_], A, B](pure: A => Eff[R, B], recurse: StateRecurse[M, A, B])(effects: Eff[M <:: R, A]): Eff[R, B] = {
+    val recurseExit = new MonadicRecurse[M, A, Eff[R, B]] {
+      type S = recurse.S
       val init: S = recurse.init
+
       def apply[X](x: M[X], s: S): (X, S) \/ Eff[R, B] =
         -\/(recurse(x, s))
+
       def finalize(a: A, s: S): Eff[R, B] =
         EffMonad[R].point(recurse.finalize(a, s))
     }
-    interpretStateExit(pure, recurseExit)(effects)
+    interpretMonadic(pure, recurseExit)(effects)
   }
 
-  def interpretState1[R <: Effects, M[_], A, B, S](pure: A => B)(recurse: StateRecurse[M, A, B, S])(effects: Eff[M <:: R, A]): Eff[R, B] =
+  def interpretState1[R <: Effects, M[_], A, B](pure: A => B)(recurse: StateRecurse[M, A, B])(effects: Eff[M <:: R, A]): Eff[R, B] =
     interpretState((a: A) => EffMonad[R].point(pure(a)), recurse)(effects)
 
-  trait StateExitRecurse[R, M[_], A, B, S] {
+  // this *really* looks like a Fold...
+  trait MonadicRecurse[M[_], A, B] {
+    type S
     val init: S
-    def apply[X](x: M[X], s: S): (X, S) \/ Eff[R, B]
-    def finalize(a: A, s: S): Eff[R, B]
+    def apply[X](x: M[X], s: S): (X, S) \/ B
+    def finalize(a: A, s: S): B
   }
 
-  def interpretStateExit[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], recurse: StateExitRecurse[R, M, A, B, S])(effects: Eff[M <:: R, A]): Eff[R, B] = {
-    def loop(eff: Eff[M <:: R, A], s: S): Eff[R, B] = {
+  def interpretMonadic[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], recurse: MonadicRecurse[M, A, Eff[R, B]])(effects: Eff[M <:: R, A]): Eff[R, B] = {
+    def loop(eff: Eff[M <:: R, A], s: recurse.S): Eff[R, B] = {
       if (eff.isInstanceOf[Pure[M <:: R, A]])
          recurse.finalize(eff.asInstanceOf[Pure[M <:: R, A]].value, s)
       else {

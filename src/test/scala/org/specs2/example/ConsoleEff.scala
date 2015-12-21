@@ -37,13 +37,17 @@ object ConsoleEff {
    * This interpreter prints messages to a printing function
    */
   def runConsoleToPrinter[R <: Effects, A](printer: String => Unit): Eff[Console <:: R, A] => Eff[R, A] = {
-    val recurse = new StateRecurse[Console, A, A, Unit] {
+    val recurse = new StateRecurse[Console, A, A] {
+      type S = Unit
       val init = ()
+
       def apply[X](x: Console[X], s: Unit): (X, Unit) =
         Tag.unwrap(x) match {
           case p@Write(m) => (printer(m), ())
         }
-      def finalize(a: A, s: Unit): A = a
+
+      def finalize(a: A, s: Unit): A =
+        a
     }
 
     interpretState1((a: A) => a)(recurse)

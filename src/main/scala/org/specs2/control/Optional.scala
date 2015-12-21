@@ -25,7 +25,7 @@ object Optional {
       def apply[X](m: Optional[X]) =
         m match {
           case Nothing()    => \/-(EffMonad[R].point(None))
-          case Something(a) => -\/(a)
+          case Something(x) => -\/(x)
         }
     }
 
