@@ -3,10 +3,10 @@ package control
 
 import Eff._
 import Effects._
-import State._
-import scalaz.{State=>_,_}, Scalaz.{get =>_, put =>_, _}
+import StateEffect._
+import scalaz._, Scalaz.{get =>_, put =>_, _}
 
-class StateSpec extends Specification with ScalaCheck { def is = s2"""
+class StateEffectSpec extends Specification with ScalaCheck { def is = s2"""
 
  The state monad can be used to modify state $modifyState
 
@@ -24,14 +24,14 @@ class StateSpec extends Specification with ScalaCheck { def is = s2"""
       w <- EffMonad[E].point("world")
     } yield h+" "+w
 
-    run(State.runState(5)(action)) ==== (("hello world", 20))
+    run(StateEffect.runState(5)(action)) ==== (("hello world", 20))
   }
 
   def stacksafeState = {
     val list = (1 to 5000).toList
-    val action = list.traverseU(i => State.put[E, Int](i).as(i.toString))
+    val action = list.traverseU(i => StateEffect.put[E, Int](i).as(i.toString))
 
-    run(State.runState(0)(action)) ==== ((list.map(_.toString), 5000))
+    run(StateEffect.runState(0)(action)) ==== ((list.map(_.toString), 5000))
   }
 
   type StateInt[A] = State[Int, A]
