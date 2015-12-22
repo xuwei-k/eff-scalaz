@@ -162,10 +162,10 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
       def askHadoopConf[R](implicit m: HadoopReader <= R): Eff[R, HadoopConf] =
         ReaderEffect.ask(Member.untagMember[Reader[HadoopConf, ?], R, HadoopTag](m))
 
-      def readFile(path: String): Eff[Hadoop, String] =
+      def readFile[R](path: String)(implicit m1: HadoopReader <= R, w: WriterString <= R): Eff[R, String] =
         for {
-          c <- askHadoopConf
-          _ <- tell("Reading from "+path)
+          c <- askHadoopConf(m1)
+          _ <- tell("Reading from "+path)(w)
         } yield c.mappers.toString
 
       def runHadoopReader[R <: Effects, A](conf: HadoopConf): Eff[HadoopReader |: R, A] => Eff[R, A] =
@@ -192,10 +192,10 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
       def askS3Conf[R](implicit m: S3Reader <= R): Eff[R, S3Conf] =
         ReaderEffect.ask(Member.untagMember[Reader[S3Conf, ?], R, S3Tag](m))
 
-      def writeFile(key: String, content: String): Eff[S3, Unit] =
+      def writeFile[R](key: String, content: String)(implicit m: S3Reader <= R, w: WriterString <= R): Eff[R, Unit] =
         for {
-          c <- askS3Conf
-          _ <- tell("Writing to bucket "+c.bucket+": "+content)
+          c <- askS3Conf(m)
+          _ <- tell("Writing to bucket "+c.bucket+": "+content)(w)
         } yield ()
 
       def runS3Reader[R <: Effects, A](conf: S3Conf): Eff[S3Reader |: R, A] => Eff[R, A] =
@@ -208,17 +208,19 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     type HadoopS3 = S3Reader |: HadoopReader |: WriterString |: Eval |: NoEffect
 
     implicit class Into[R, A](e: Eff[R, A]) {
-      def into[U]: Eff[U, A] = ???
+      def into[U, E1[_]](implicit m1: E1 <= U, m2: E1 <= R): Eff[U, A] =
+        e.asInstanceOf[Eff[U, A]]
+
     }
 
 
-    val action: Eff[HadoopS3, Unit] = for {
-      s <- readFile("/tmp/data").into[HadoopS3]
-      _ <- writeFile("key", s)  .into[HadoopS3]
+    val action = for {
+      s <- readFile[HadoopS3]("/tmp/data")//.into[HadoopS3, HadoopReader]
+      _ <- writeFile[HadoopS3]("key", s)  //.into[HadoopS3, S3Reader]
     } yield ()
 
     (action |> runS3Reader(S3Conf("bucket")) |> runHadoopReader(HadoopConf(10)) |> runWriter |> runEval |> run) ====
-      (((), List("something")))
+      (((), List("Reading from /tmp/data", "Writing to bucket bucket: 10")))
   }
 
   /**
