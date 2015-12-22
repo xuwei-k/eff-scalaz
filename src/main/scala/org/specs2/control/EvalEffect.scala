@@ -5,7 +5,7 @@ import Eff._
 import Effects._
 import org.specs2.control.Member._
 import scala.util.control.NonFatal
-import scalaz._, Scalaz._
+import scalaz._
 import scalaz.effect.IO
 
 /**
@@ -45,51 +45,5 @@ object EvalEffect {
     interpret1((a: A) => \/-(a): Throwable \/ A)(recurse)(r)
   }
 
-  implicit class AndFinally[R, A](action: Eff[R, A]) {
-    def andFinally(last: Eff[R, Unit])(implicit m: Eval <= R): Eff[R, A] =
-      EvalEffect.andFinally(action, last)
-
-    def orElse(action2: Eff[R, A])(implicit m: Eval <= R): Eff[R, A] =
-      EvalEffect.orElse(action, action2)
-  }
-
-  /**
-   * evaluate 2 actions possibly having eval effects
-   *
-   * The second action must be executed whether the first is successful or not
-   */
-  def andFinally[R, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: Eval <= R): Eff[R, A] =
-    (action, last) match {
-      case (_, Pure(l))                     => action
-      case (Pure(_), Impure(u, c))          => action >>= ((a: A) => last.as(a))
-      case (Impure(u1, c1), Impure(u2, c2)) =>
-        (m.project(u1), m.project(u2)) match {
-          case (Some(e1), Some(e2)) =>
-            EvalEffect.delay { try e1.value.asInstanceOf[A] finally { e2.value; () } }
-
-          case _ => action
-        }
-    }
-
-  /**
-   * evaluate 2 actions possibly having eval effects
-   *
-   * The second action must be executed if the first one is not successful
-   */
-  def orElse[R, A](action1: Eff[R, A], action2: Eff[R, A])(implicit m: Eval <= R): Eff[R, A] =
-    (action1, action2) match {
-      case (Pure(a), _) =>
-        try EvalEffect.now(a)
-        catch { case _ : Throwable => action2 }
-
-      case (Impure(u1, c1), _) =>
-        m.project(u1) match {
-          case Some(e1) =>
-            try c1(e1.value.asInstanceOf[A])
-            catch { case _: Throwable => action2 }
-
-          case None => action1
-        }
-    }
 }
 

@@ -4,14 +4,17 @@ import scala.annotation.tailrec
 import scalaz._
 import Effects._
 import Member._
+import Eff._
 
-/**
- * data Eff f a where
- *   Pure :: a → Eff f a
- *   Impure :: f x → (x → Eff f a) → Eff f a
- *
- */
-sealed trait Eff[R, A]
+sealed trait Eff[R, A] { self =>
+
+  def map[B](f: A => B): Eff[R, B] =
+    EffMonad[R].map(this)(f)
+
+  def flatMap[B](f: A => Eff[R, B]): Eff[R, B] =
+    EffMonad[R].bind(this)(f)
+
+}
 
 case class Pure[R, A](value: A) extends Eff[R, A]
 

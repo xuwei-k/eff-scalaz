@@ -7,7 +7,6 @@ import EvalEffect._
 import WarningsEffect._
 import ConsoleEffect._
 import DisjunctionErrorEffect._
-import Eff._
 import Member.{<=}
 import org.specs2.matcher.DisjunctionMatchers
 import scalaz._, Scalaz._, effect.IO
@@ -20,6 +19,7 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
    display log messages                $logMessages
    collect warnings                    $collectWarnings
    emit a warning then fail            $warningAndFail
+   do an action or else warn           $orElseWarn
 
 """
 
@@ -41,13 +41,19 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
 
   def warningAndFail = {
     val action = for {
-      i <- delay(1)
-      _ <- Action.warnAndFail("hmm", "let's stop")
-    } yield i
+       i <- EvalEffect.delay(1)
+       _ <- Action.warnAndFail[ActionStack, Int]("hmm", "let's stop")
+      } yield i
 
     runAction(action)._1 must be_-\/
   }
 
+  def orElseWarn = {
+    val action =
+      DisjunctionErrorEffect.fail("failed").orElse(warn("that didn't work"))
+
+    runAction(action)._1 must be_\/-
+  }
 
   /**
    * HELPERS

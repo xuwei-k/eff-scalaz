@@ -10,75 +10,9 @@ import scalaz._, Scalaz._
 
 class EvalEffectSpec extends Specification { def is = s2"""
 
- An action can be evaluated after another
-   when the first action is ok   $andFinallyOk
-   even if there is an exception $andFinallyKo
-
- An action can be evaluated, with another one
-   if the first is successful, the second is not executed $orElse1
-   if the first is not successful, the second is executed $orElse2
-
  run is stack safe with Eval   $stacksafeRun
 
 """
-
-  type R = Eval |: NoEffect
-
-  def andFinallyOk = {
-
-    val messages: ListBuffer[String] = new ListBuffer[String]
-
-    val action =
-      EvalEffect.delay[R, Unit](messages.append("first"))
-
-    val all: Eff[R, Unit] =
-      action.andFinally(EvalEffect.delay(messages.append("final")))
-
-    run(runEval(all))
-
-    messages.toList === List("first", "final")
-  }
-
-  def andFinallyKo = {
-
-    val messages: ListBuffer[String] = new ListBuffer[String]
-
-    val action =
-      EvalEffect.delay[R, Unit] { throw new Exception("boom"); messages.append("first") }
-
-    val all: Eff[R, Unit] =
-      action.andFinally(EvalEffect.delay(messages.append("final")))
-
-    run(attemptEval(all))
-
-    messages.toList === List("final")
-  }
-
-  def orElse1 = {
-    val messages: ListBuffer[String] = new ListBuffer[String]
-
-    val action =
-      EvalEffect.delay[R, Int] { messages.append("first"); 1 }
-
-    val all: Eff[R, Int] =
-      action.orElse(EvalEffect.delay { messages.append("second"); 2 })
-
-    (run(runEval(all)) === 1) and
-    (messages.toList === List("first"))
-  }
-
-  def orElse2 = {
-    val messages: ListBuffer[String] = new ListBuffer[String]
-
-    val action =
-      EvalEffect.delay[R, Int] { throw new Exception("boom"); messages.append("first"); 1 }
-
-    val all: Eff[R, Int] =
-      action.orElse(EvalEffect.delay { messages.append("second"); 2 })
-
-    (run(runEval(all)) === 2) and
-    (messages.toList === List("second"))
-  }
 
   def stacksafeRun = {
     type E = Eval |: NoEffect
