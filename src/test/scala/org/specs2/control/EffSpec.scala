@@ -8,6 +8,8 @@ import WriterEffect._
 import com.ambiata.disorder.PositiveIntSmall
 import org.scalacheck._, Arbitrary._
 import scalaz._, Scalaz._
+import EvalEffect._
+import Member.{<=}
 import scalacheck.ScalazProperties._
 
 class EffSpec extends Specification with ScalaCheck { def is = s2"""
@@ -23,6 +25,8 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
  The Eff monad is stack safe with Writer                 $stacksafeWriter
  The Eff monad is stack safe with Reader                 $stacksafeReader
  The Eff monad is stack safe with both Reader and Writer $stacksafeReaderWriter
+
+ Two stacks using different effects can be used together $together
 
 """
 
@@ -138,6 +142,83 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     val action = list.traverseU(i => ReaderEffect.ask[E, String] >>= WriterEffect.tell[E, String])
 
     run(WriterEffect.runWriter(ReaderEffect.runReader("h")(action))) ==== ((list.as(()), list.as("h")))
+  }
+
+  def together = {
+    object HadoopStack {
+      trait HadoopTag
+      case class HadoopConf(mappers: Int)
+
+      type HadoopReader[A] = Reader[HadoopConf, A] @@ HadoopTag
+      type WriterString[A] = Writer[String, A]
+      type Hadoop = HadoopReader |: WriterString |: Eval |: NoEffect
+
+      implicit def HadoopReaderMember: Member[HadoopReader, Hadoop] =
+        Member.MemberNatIsMember
+
+      implicit def WriterStringMember: Member[WriterString, Hadoop] =
+        Member.MemberNatIsMember
+
+      def askHadoopConf[R](implicit m: HadoopReader <= R): Eff[R, HadoopConf] =
+        ReaderEffect.ask(Member.untagMember[Reader[HadoopConf, ?], R, HadoopTag](m))
+
+      def readFile(path: String): Eff[Hadoop, String] =
+        for {
+          c <- askHadoopConf
+          _ <- tell("Reading from "+path)
+        } yield c.mappers.toString
+
+      def runHadoopReader[R <: Effects, A](conf: HadoopConf): Eff[HadoopReader |: R, A] => Eff[R, A] =
+        (e: Eff[HadoopReader |: R, A]) => ReaderEffect.runTaggedReader(conf)(e)
+
+    }
+
+    object S3Stack {
+      trait S3Tag
+      case class S3Conf(bucket: String)
+
+      type S3Reader[A] = Reader[S3Conf, A] @@ S3Tag
+      type WriterString[A] = Writer[String, A]
+
+      type S3 = S3Reader |: WriterString |: Eval |: NoEffect
+
+
+      implicit def S3ReaderMember: Member[S3Reader, S3] =
+        Member.MemberNatIsMember
+
+      implicit def WriterStringMember: Member[WriterString, S3] =
+        Member.MemberNatIsMember
+
+      def askS3Conf[R](implicit m: S3Reader <= R): Eff[R, S3Conf] =
+        ReaderEffect.ask(Member.untagMember[Reader[S3Conf, ?], R, S3Tag](m))
+
+      def writeFile(key: String, content: String): Eff[S3, Unit] =
+        for {
+          c <- askS3Conf
+          _ <- tell("Writing to bucket "+c.bucket+": "+content)
+        } yield ()
+
+      def runS3Reader[R <: Effects, A](conf: S3Conf): Eff[S3Reader |: R, A] => Eff[R, A] =
+        (e: Eff[S3Reader |: R, A]) => ReaderEffect.runTaggedReader(conf)(e)
+    }
+
+    import HadoopStack._
+    import S3Stack.{WriterString=>_,_}
+
+    type HadoopS3 = S3Reader |: HadoopReader |: WriterString |: Eval |: NoEffect
+
+    implicit class Into[R, A](e: Eff[R, A]) {
+      def into[U]: Eff[U, A] = ???
+    }
+
+
+    val action: Eff[HadoopS3, Unit] = for {
+      s <- readFile("/tmp/data").into[HadoopS3]
+      _ <- writeFile("key", s)  .into[HadoopS3]
+    } yield ()
+
+    (action |> runS3Reader(S3Conf("bucket")) |> runHadoopReader(HadoopConf(10)) |> runWriter |> runEval |> run) ====
+      (((), List("something")))
   }
 
   /**

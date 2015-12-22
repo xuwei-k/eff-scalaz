@@ -1,7 +1,6 @@
 package org.specs2
 package example
 
-import org.specs2.control.Eff._
 import org.specs2.control.Effects._
 import org.specs2.control.{Effects, Eff, Member, WriterEffect}
 import scalaz._
@@ -19,21 +18,7 @@ object WarningsEffect {
   /**
    * This interpreter cumulates warnings
    */
-  def runWarnings[R <: Effects, A](w: Eff[Warnings |: R, A]): Eff[R, (A, Vector[String])] = {
-    val recurse = new StateRecurse[Warnings, A, (A, Vector[String])] {
-      type S = Vector[String]
-      val init = Vector()
-
-      def apply[X](x: Warnings[X], s: Vector[String]): (X, Vector[String]) =
-        Tag.unwrap(x) match {
-          case w => (w.run._2, s :+ w.run._1)
-        }
-
-      def finalize(a: A, s: Vector[String]): (A, Vector[String]) =
-        (a, s)
-    }
-
-    interpretState1[R, Warnings, A, (A, Vector[String])]((a: A) => (a, Vector()))(recurse)(w)
-  }
+  def runWarnings[R <: Effects, A](w: Eff[Warnings |: R, A]): Eff[R, (A, Vector[String])] =
+    WriterEffect.runTaggedWriter[R, WarningsTag, String, A](w)
 
 }

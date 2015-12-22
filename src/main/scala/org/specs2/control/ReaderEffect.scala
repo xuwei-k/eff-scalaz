@@ -19,4 +19,13 @@ object ReaderEffect {
 
     interpret1[R, Reader[A, ?], B, B]((b: B) => b)(recurse)(r)
   }
+
+  def runTaggedReader[R <: Effects, T, A, B](env: A)(r: Eff[({type l[X] = Reader[A, X] @@ T})#l |: R, B]): Eff[R, B] = {
+    val recurse = new Recurse[({type l[X] = Reader[A, X] @@ T})#l, R, B] {
+      def apply[X](m: Reader[A, X] @@ T) = -\/(env.asInstanceOf[X])
+    }
+
+    interpret1[R, ({type l[X] = Reader[A, X] @@ T})#l, B, B]((b: B) => b)(recurse)(r)
+  }
+
 }
