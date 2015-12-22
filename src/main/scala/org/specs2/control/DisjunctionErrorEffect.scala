@@ -21,11 +21,14 @@ object DisjunctionErrorEffect {
     try   impure(m.inject(\/-(Name(a))), Arrs.singleton((a: A) => EffMonad[R].point(a)))
     catch { case t: Throwable => exception(t) }
 
+  def error[R, A](error: Error)(implicit m: DisjunctionError <= R): Eff[R, A] =
+    impure(m.inject(-\/(error)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
+
   def fail[R, A](message: String)(implicit m: DisjunctionError <= R): Eff[R, A] =
-    impure(m.inject(-\/(\/-(message))), Arrs.singleton((a: A) => EffMonad[R].point(a)))
+    error(\/-(message))
 
   def exception[R, A](t: Throwable)(implicit m: DisjunctionError <= R): Eff[R, A] =
-    impure(m.inject(-\/(-\/(t))), Arrs.singleton((a: A) => EffMonad[R].point(a)))
+    error(-\/(t))
 
   def runDisjunctionError[R <: Effects, A](r: Eff[DisjunctionError |: R, A]): Eff[R, Error \/ A] = {
     val recurse = new Recurse[DisjunctionError, R, Error \/ A] {
