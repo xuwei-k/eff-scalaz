@@ -1,14 +1,11 @@
 package org.specs2.example
 
-import org.specs2.control.DisjunctionEffect._
-import org.specs2.control.EvalEffect._
-import org.specs2.control.{Effects, Eff, DisjunctionErrorEffect, Member, MemberNat, EvalEffect, NoEffect, Pure, Impure}
+import org.specs2.control.{Effects, Eff, DisjunctionErrorEffect, Member, MemberNat, EvalEffect, NoEffect}
 import Effects._, Eff._
-
-import scala.util.control.NonFatal
-import scalaz.{Reader => _, Writer => _, _}, Scalaz._
+import scalaz._, Scalaz._
 import WarningsEffect._
 import ConsoleEffect._
+import EvalEffect._
 import DisjunctionErrorEffect._
 import Member._
 import MemberNat._
@@ -63,7 +60,7 @@ object Action {
     fail(failureMessage)
 
   def runAction[A](action: Eff[ActionStack, A], printer: String => Unit = s => ()): (Error \/ A, Vector[String]) =
-    run(runEval(runWarnings(runConsoleToPrinter(printer)(runDisjunction(action)))))
+    run(runEval(runWarnings(runConsoleToPrinter(printer)(runDisjunctionError(action)))))
 
 
 }

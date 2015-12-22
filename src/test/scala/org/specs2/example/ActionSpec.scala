@@ -2,7 +2,7 @@ package org.specs2
 package example
 
 import Action._
-import control.{DisjunctionErrorEffect, EvalEffect, Member, Eff, DisjunctionEffect}
+import control.{DisjunctionErrorEffect, EvalEffect, Member, Eff}
 import EvalEffect._
 import WarningsEffect._
 import ConsoleEffect._
@@ -68,7 +68,7 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
     _ <- log("got the value "+x)
     y <- evalIO(IO(j))
     _ <- log("got the value "+y)
-    s <- if (x + y > 10) fail("too big") else DisjunctionEffect.right(x + y)
+    s <- if (x + y > 10) fail("too big") else DisjunctionErrorEffect.ok(x + y)
     _ <- if (s >= 5) warn("the sum is big: "+s) else Eff.unit[ActionStack]
   } yield s
 
@@ -86,7 +86,7 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
     _ <- log[R]("got the value "+x)
     y <- evalIO[R, Int](IO(j))
     _ <- log[R]("got the value "+y)
-    s <- if (x + y > 10) fail[R, Int]("too big") else DisjunctionEffect.right[R, Error, Int](x + y)
+    s <- if (x + y > 10) fail[R, Int]("too big") else DisjunctionErrorEffect.ok[R, Int](x + y)
     _ <- if (s >= 5) warn[R]("the sum is big: "+s) else Eff.unit[R]
   } yield s
 
