@@ -2,11 +2,11 @@ package org.specs2
 package example
 
 import Action._
-import control.{DisjunctionErrorEffect, EvalEffect, Member, Eff}
+import control.{ErrorEffect, EvalEffect, Member, Eff}
 import EvalEffect._
 import WarningsEffect._
 import ConsoleEffect._
-import DisjunctionErrorEffect._
+import ErrorEffect._
 import Member.{<=}
 import org.specs2.matcher.DisjunctionMatchers
 import scalaz._, Scalaz._, effect.IO
@@ -50,7 +50,7 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
 
   def orElseWarn = {
     val action =
-      DisjunctionErrorEffect.fail("failed").orElse(warn("that didn't work"))
+      ErrorEffect.fail("failed").orElse(warn("that didn't work"))
 
     runAction(action)._1 must be_\/-
   }
@@ -74,7 +74,7 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
     _ <- log("got the value "+x)
     y <- evalIO(IO(j))
     _ <- log("got the value "+y)
-    s <- if (x + y > 10) fail("too big") else DisjunctionErrorEffect.ok(x + y)
+    s <- if (x + y > 10) fail("too big") else ErrorEffect.ok(x + y)
     _ <- if (s >= 5) warn("the sum is big: "+s) else Eff.unit[ActionStack]
   } yield s
 
@@ -86,13 +86,13 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
     implicit m1: Eval <= R,
              m2: Console <= R,
              m3: Warnings <= R,
-             m4: DisjunctionError <= R
+             m4: ErrorOrOk <= R
   ): Eff[R, Int] = for {
     x <- evalIO[R, Int](IO(i))
     _ <- log[R]("got the value "+x)
     y <- evalIO[R, Int](IO(j))
     _ <- log[R]("got the value "+y)
-    s <- if (x + y > 10) fail[R, Int]("too big") else DisjunctionErrorEffect.ok[R, Int](x + y)
+    s <- if (x + y > 10) fail[R, Int]("too big") else ErrorEffect.ok[R, Int](x + y)
     _ <- if (s >= 5) warn[R]("the sum is big: "+s) else Eff.unit[R]
   } yield s
 

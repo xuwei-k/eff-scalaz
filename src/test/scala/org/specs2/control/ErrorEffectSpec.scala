@@ -3,11 +3,11 @@ package org.specs2.control
 import org.specs2.Specification
 import Eff._
 import Effects._
-import DisjunctionErrorEffect.{ok => OK, _}
+import ErrorEffect.{ok => OK, _}
 import scala.collection.mutable.ListBuffer
 import scalaz._, Scalaz._
 
-class DisjunctionErrorEffectSpec extends Specification { def is = s2"""
+class ErrorEffectSpec extends Specification { def is = s2"""
 
  An action can be evaluated after another
    when the first action is ok   $andFinallyOk
@@ -17,11 +17,11 @@ class DisjunctionErrorEffectSpec extends Specification { def is = s2"""
    if the first is successful, the second is not executed $orElse1
    if the first is not successful, the second is executed $orElse2
 
-  Writer can be used with DisjunctionError to get logs even if there is an exception $logException
+  Writer can be used with Error to get logs even if there is an exception $logException
 
 """
 
-  type R = DisjunctionError |: NoEffect
+  type R = ErrorOrOk |: NoEffect
 
   def andFinallyOk = {
 
@@ -33,7 +33,7 @@ class DisjunctionErrorEffectSpec extends Specification { def is = s2"""
     val all: Eff[R, Unit] =
       action.andFinally(OK(messages.append("final")))
 
-    run(runDisjunctionError(all))
+    run(runError(all))
 
     messages.toList ==== List("first", "final")
   }
@@ -48,7 +48,7 @@ class DisjunctionErrorEffectSpec extends Specification { def is = s2"""
     val all: Eff[R, Unit] =
       action.andFinally(OK(messages.append("final")))
 
-    run(runDisjunctionError(all))
+    run(runError(all))
 
     messages.toList ==== List("final")
   }
@@ -62,7 +62,7 @@ class DisjunctionErrorEffectSpec extends Specification { def is = s2"""
     val all: Eff[R, Int] =
       action.orElse(OK { messages.append("second"); 2 })
 
-    (run(runDisjunctionError(all)) ==== \/-(1)) and
+    (run(runError(all)) ==== \/-(1)) and
     (messages.toList ==== List("first"))
   }
 
@@ -75,23 +75,23 @@ class DisjunctionErrorEffectSpec extends Specification { def is = s2"""
     val all: Eff[R, Int] =
       action.orElse(OK { messages.append("second"); 2 })
 
-    (run(runDisjunctionError(all)) ==== \/-(2)) and
+    (run(runError(all)) ==== \/-(2)) and
     (messages.toList ==== List("second"))
   }
 
   def logException = {
     import EvalEffect._
-    import DisjunctionErrorEffect._
+    import ErrorEffect._
     import WriterEffect._
 
     type WriterString[A] = Writer[String, A]
 
-    type E = DisjunctionError |: WriterString |: Eval |: NoEffect
+    type E = ErrorOrOk |: WriterString |: Eval |: NoEffect
 
     implicit def WriterStringMember: Member[WriterString, E] =
       Member.MemberNatIsMember
 
-    implicit def DisjunctionErrorMember: Member[DisjunctionError, E] =
+    implicit def ErrorMember: Member[ErrorOrOk, E] =
       Member.MemberNatIsMember
 
     val action: Eff[E, Int] = for {
@@ -101,7 +101,7 @@ class DisjunctionErrorEffectSpec extends Specification { def is = s2"""
     } yield a
 
     val result =
-      run(runEval(runWriter(runDisjunctionError(action))))
+      run(runEval(runWriter(runError(action))))
 
     (result._2 ==== List("start")) and
     (result._1.toErrorSimpleMessage ==== Option("Error[java.lang.Exception] boom"))

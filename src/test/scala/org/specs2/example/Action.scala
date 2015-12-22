@@ -1,12 +1,12 @@
 package org.specs2.example
 
-import org.specs2.control.{Effects, Eff, DisjunctionErrorEffect, Member, MemberNat, EvalEffect, NoEffect}
+import org.specs2.control.{Effects, Eff, ErrorEffect, Member, MemberNat, EvalEffect, NoEffect}
 import Effects._, Eff._
 import scalaz._, Scalaz._
 import WarningsEffect._
 import ConsoleEffect._
 import EvalEffect._
-import DisjunctionErrorEffect._
+import ErrorEffect._
 import Member._
 import MemberNat._
 
@@ -22,13 +22,13 @@ import MemberNat._
  *
  * For example
  *
- *  DisjunctionString |: Console |: Warnings |: Eval |: EffectsNil
+ *  Error |: Console |: Warnings |: Eval |: EffectsNil
  *
  *  will return warnings *and* failures: (String \/ A, Vector[String])
  *
  * Whereas
  *
- *  Console |: Warnings |: DisjunctionString |: Eval |: EffectsNil
+ *  Console |: Warnings |: Error |: Eval |: EffectsNil
  *
  *  will return not warnings if there is a failure: String \/ (A, Vector[String])
  *
@@ -37,7 +37,7 @@ import MemberNat._
  */
 object Action {
 
-  type ActionStack = DisjunctionError |: Console |: Warnings |: Eval |: NoEffect
+  type ActionStack = ErrorOrOk |: Console |: Warnings |: Eval |: NoEffect
 
   implicit def EvalMember: Member[Eval, ActionStack] =
     Member.MemberNatIsMember
@@ -48,19 +48,19 @@ object Action {
   implicit def ConsoleMember: Member[Console, ActionStack] =
     Member.MemberNatIsMember
 
-  implicit def DisjunctionErrorMember: Member[DisjunctionError, ActionStack] =
+  implicit def ErrorMember: Member[ErrorOrOk, ActionStack] =
     Member.MemberNatIsMember
 
   /**
    * warn the user about something that is probably wrong on his side,
    * and then fail all other computations
    */
-  def warnAndFail[R <: Effects, A](message: String, failureMessage: String)(implicit m1: Warnings <= R, m2: DisjunctionError <= R): Eff[R, A] =
+  def warnAndFail[R <: Effects, A](message: String, failureMessage: String)(implicit m1: Warnings <= R, m2: ErrorOrOk <= R): Eff[R, A] =
     warn(message)(m1) >>
     fail(failureMessage)
 
   def runAction[A](action: Eff[ActionStack, A], printer: String => Unit = s => ()): (Error \/ A, Vector[String]) =
-    run(runEval(runWarnings(runConsoleToPrinter(printer)(runDisjunctionError(action)))))
+    run(runEval(runWarnings(runConsoleToPrinter(printer)(runError(action)))))
 
 
 }

@@ -10,28 +10,28 @@ import scalaz._, Scalaz._
 /**
  * Effect for computation which can fail and return a Throwable, or just stop with a failure
  */
-object DisjunctionErrorEffect {
+object ErrorEffect {
 
   type Error = Throwable \/ String
 
-  type DisjunctionError[A] = Error \/ Name[A]
+  type ErrorOrOk[A] = Error \/ Name[A]
 
-  def ok[R, A](a: =>A)(implicit m: DisjunctionError <= R): Eff[R, A] =
+  def ok[R, A](a: =>A)(implicit m: ErrorOrOk <= R): Eff[R, A] =
     try   impure(m.inject(\/-(Name(a))), Arrs.singleton((a: A) => EffMonad[R].point(a)))
     catch { case t: Throwable => exception(t) }
 
-  def error[R, A](error: Error)(implicit m: DisjunctionError <= R): Eff[R, A] =
+  def error[R, A](error: Error)(implicit m: ErrorOrOk <= R): Eff[R, A] =
     impure(m.inject(-\/(error)), Arrs.singleton((a: A) => EffMonad[R].point(a)))
 
-  def fail[R, A](message: String)(implicit m: DisjunctionError <= R): Eff[R, A] =
+  def fail[R, A](message: String)(implicit m: ErrorOrOk <= R): Eff[R, A] =
     error(\/-(message))
 
-  def exception[R, A](t: Throwable)(implicit m: DisjunctionError <= R): Eff[R, A] =
+  def exception[R, A](t: Throwable)(implicit m: ErrorOrOk <= R): Eff[R, A] =
     error(-\/(t))
 
-  def runDisjunctionError[R <: Effects, A](r: Eff[DisjunctionError |: R, A]): Eff[R, Error \/ A] = {
-    val recurse = new Recurse[DisjunctionError, R, Error \/ A] {
-      def apply[X](m: DisjunctionError[X]) =
+  def runError[R <: Effects, A](r: Eff[ErrorOrOk |: R, A]): Eff[R, Error \/ A] = {
+    val recurse = new Recurse[ErrorOrOk, R, Error \/ A] {
+      def apply[X](m: ErrorOrOk[X]) =
         m match {
           case -\/(e) =>
             \/-(EffMonad[R].point(-\/(e)))
@@ -42,23 +42,23 @@ object DisjunctionErrorEffect {
         }
     }
 
-    interpret1[R, DisjunctionError, A, Error \/ A]((a: A) => \/-(a))(recurse)(r)
+    interpret1[R, ErrorOrOk, A, Error \/ A]((a: A) => \/-(a))(recurse)(r)
   }
 
-  implicit class DisjunctionErrorEffectOps[R, A](action: Eff[R, A]) {
-    def andFinally(last: Eff[R, Unit])(implicit m: DisjunctionError <= R): Eff[R, A] =
-      DisjunctionErrorEffect.andFinally(action, last)
+  implicit class ErrorEffectOps[R, A](action: Eff[R, A]) {
+    def andFinally(last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] =
+      ErrorEffect.andFinally(action, last)
 
-    def orElse(action2: Eff[R, A])(implicit m: DisjunctionError <= R): Eff[R, A] =
-      DisjunctionErrorEffect.orElse(action, action2)
+    def orElse(action2: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
+      ErrorEffect.orElse(action, action2)
   }
 
   /**
-   * evaluate 2 actions possibly having disjunction error effects
+   * evaluate 2 actions possibly having error effects
    *
    * The second action must be executed whether the first is successful or not
    */
-  def andFinally[R, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: DisjunctionError <= R): Eff[R, A] =
+  def andFinally[R, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] =
     (action, last) match {
 
       case (Pure(e), Pure(l)) =>
@@ -72,7 +72,7 @@ object DisjunctionErrorEffect {
           case (Some(\/-(e1)), Some(\/-(e2))) =>
             ok {
               try     c1(e1.value).andFinally(last)
-              catch { case NonFatal(t) => e2.value; DisjunctionErrorEffect.exception[R, A](t)(m) }
+              catch { case NonFatal(t) => e2.value; ErrorEffect.exception[R, A](t)(m) }
             }(m).flatMap(identity _)
 
           case (None, Some(\/-(e2))) =>
@@ -87,11 +87,11 @@ object DisjunctionErrorEffect {
     }
 
   /**
-   * evaluate 2 actions possibly having disjunction error effects
+   * evaluate 2 actions possibly having error effects
    *
    * The second action must be executed if the first one is not successful
    */
-  def orElse[R, A](action1: Eff[R, A], action2: Eff[R, A])(implicit m: DisjunctionError <= R): Eff[R, A] =
+  def orElse[R, A](action1: Eff[R, A], action2: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
     (action1, action2) match {
       case (Pure(_), _) =>
         action1
@@ -110,7 +110,7 @@ object DisjunctionErrorEffect {
         }
     }
 
-  implicit class DisjunctionErrorOps[A](c: Error \/ A) {
+  implicit class ErrorOrOkOps[A](c: Error \/ A) {
     def toErrorSimpleMessage: Option[String] =
       c match {
         case -\/(e) => Some(e.simpleMessage)
@@ -142,7 +142,7 @@ object DisjunctionErrorEffect {
   def render(t: Throwable): String =
     s"Error[${t.getClass.getName}]" + (Option(t.getMessage) match {
       case None          => ""
-      case Some(message) => s" ${message}"
+      case Some(message) => s" $message"
     })
 
   def renderWithStack(t: Throwable): String =
