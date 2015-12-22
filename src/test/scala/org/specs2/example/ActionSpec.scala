@@ -42,7 +42,7 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
   def warningAndFail = {
     val action = for {
        i <- EvalEffect.delay(1)
-       _ <- Action.warnAndFail[ActionStack, Int]("hmm", "let's stop")
+       _ <- Action.warnAndFail("hmm", "let's stop")
       } yield i
 
     runAction(action)._1 must be_-\/

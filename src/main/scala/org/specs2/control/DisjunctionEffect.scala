@@ -1,6 +1,7 @@
 package org.specs2.control
 
 import scalaz._
+import syntax.functor._
 import Eff._
 import Effects._
 
