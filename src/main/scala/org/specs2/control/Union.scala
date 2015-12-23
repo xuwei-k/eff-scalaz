@@ -20,13 +20,13 @@ object Union {
   def now[T[_], R <: Effects, A](ta: T[A]): Union[T |: R, A] =
     UnionNow(ta)
 
-  def next[T[_], O[_], R <: Effects, A](u: Union[R, A]): Union[O |: R, A] =
+  def next[O[_], R <: Effects, A](u: Union[R, A]): Union[O |: R, A] =
     UnionNext(u)
 }
 
 case class UnionNow[T[_], R <: Effects, A](ta: T[A]) extends Union[T |: R, A]
 
-case class UnionNext[T[_], O[_], R <: Effects, A](u: Union[R, A]) extends Union[O |: R, A]
+case class UnionNext[O[_], R <: Effects, A](u: Union[R, A]) extends Union[O |: R, A]
 
 // data P (n::Nat) = P
 case class P[N <: Nat]()
