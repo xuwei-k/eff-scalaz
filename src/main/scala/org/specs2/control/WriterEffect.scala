@@ -15,6 +15,9 @@ import collection.mutable._
  *
  *  - log values to the console or to a file as soon as they are produced
  *  - accumulate values in a list
+ *
+ * Several writer effects can be used in the same stack if they are tagged.
+ *
  */
 object WriterEffect {
 
