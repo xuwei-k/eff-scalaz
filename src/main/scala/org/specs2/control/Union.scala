@@ -14,7 +14,9 @@ import Effects._
  *
  *
  */
-trait Union[R, A]
+trait Union[R, A] {
+  type X = A
+}
 
 object Union {
   def now[T[_], R <: Effects, A](ta: T[A]): Union[T |: R, A] =

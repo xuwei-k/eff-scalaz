@@ -2,6 +2,7 @@ package org.specs2.control
 
 import Eff._
 import Effects._
+import Interpret._
 import scalaz.{-\/, \/-}
 
 /**

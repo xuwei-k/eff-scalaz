@@ -3,6 +3,7 @@ package org.specs2.control
 import Eff._
 import Effects._
 import scalaz._
+import Interpret._
 
 /**
  * Effect for depending on a value of type I

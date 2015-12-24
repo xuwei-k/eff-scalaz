@@ -287,6 +287,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     (action |> runS3Reader(S3Conf("bucket")) |> runHadoopReader(HadoopConf(10)) |> runWriter |> runEval |> run) ====
       (((), List("Reading from /tmp/data", "Writing to bucket bucket: 10")))
   }
+
   /**
    * Helpers
    */

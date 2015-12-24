@@ -7,6 +7,7 @@ import org.specs2.control.Member._
 import scala.util.control.NonFatal
 import scalaz._
 import scalaz.effect.IO
+import Interpret._
 
 /**
  * Effect for delayed computations

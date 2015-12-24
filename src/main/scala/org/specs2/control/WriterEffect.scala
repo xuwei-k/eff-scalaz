@@ -3,6 +3,7 @@ package org.specs2.control
 import Eff._
 import Effects._
 import Member._
+import Interpret._
 import scalaz._
 
 /**
@@ -14,7 +15,6 @@ object WriterEffect {
     Writer(o, ())
 
   def tell[R, O](o: O)(implicit member: Member[Writer[O, ?], R]): Eff[R, Unit] =
-    // the type annotation is necessary here to prevent a compiler error
     send[Writer[O, ?], R, Unit](write(o))
 
   def runWriter[R <: Effects, O, A](w: Eff[Writer[O, ?] |: R, A]): Eff[R, (A, List[O])] = {

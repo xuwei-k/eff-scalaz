@@ -3,6 +3,7 @@ package org.specs2.control
 import Eff._
 import Effects._
 import Member._
+import Interpret._
 
 import scala.util.control.NonFatal
 import scalaz._, Scalaz._
@@ -99,7 +100,7 @@ object ErrorEffect {
       case (Impure(u1, c1), _) =>
         m.project(u1) match {
           case Some(\/-(e1)) =>
-            try c1(e1.value.asInstanceOf[A]).orElse(action2)
+            try c1(e1.value).orElse(action2)
             catch { case NonFatal(_) => action2 }
 
           case Some(-\/(_)) =>
