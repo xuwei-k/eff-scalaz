@@ -28,6 +28,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
  The Eff monad is stack safe with both Reader and Writer $stacksafeReaderWriter
 
  Two stacks using different effects can be used together $together
+ Two stacks using different effects can be used together with open effects $togetherOpen
 
 """
 
@@ -163,7 +164,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
       def askHadoopConf[R](implicit m: HadoopReader <= R): Eff[R, HadoopConf] =
         ReaderEffect.ask(Member.untagMember[Reader[HadoopConf, ?], R, HadoopTag](m))
 
-      def readFile[R](path: String): Eff[Hadoop, String] =
+      def readFile(path: String): Eff[Hadoop, String] =
         for {
           c <- askHadoopConf
           _ <- tell("Reading from "+path)
@@ -192,7 +193,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
       def askS3Conf[R](implicit m: S3Reader <= R): Eff[R, S3Conf] =
         ReaderEffect.ask(Member.untagMember[Reader[S3Conf, ?], R, S3Tag](m))
 
-      def writeFile[R](key: String, content: String): Eff[S3, Unit] =
+      def writeFile(key: String, content: String): Eff[S3, Unit] =
         for {
           c <- askS3Conf
           _ <- tell("Writing to bucket "+c.bucket+": "+content)
@@ -207,12 +208,6 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
     type HadoopS3 = S3Reader |: HadoopReader |: WriterString |: Eval |: NoEffect
 
-    implicit class Into[R, A](e: Eff[R, A]) {
-      def into[U, E1[_]](implicit m1: E1 <= U, m2: E1 <= R): Eff[U, A] =
-        e.asInstanceOf[Eff[U, A]]
-
-    }
-
     val action = for {
       s <- readFile("/tmp/data").into[HadoopS3]
       _ <- writeFile("key", s)  .into[HadoopS3]
@@ -222,6 +217,76 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
       (((), List("Reading from /tmp/data", "Writing to bucket bucket: 10")))
   }
 
+  def togetherOpen = {
+    object HadoopStack {
+      trait HadoopTag
+      case class HadoopConf(mappers: Int)
+
+      type HadoopReader[A] = Reader[HadoopConf, A] @@ HadoopTag
+      type WriterString[A] = Writer[String, A]
+      type Hadoop = HadoopReader |: WriterString |: Eval |: NoEffect
+
+      implicit def HadoopReaderMember: Member[HadoopReader, Hadoop] =
+        Member.MemberNatIsMember
+
+      implicit def WriterStringMember: Member[WriterString, Hadoop] =
+        Member.MemberNatIsMember
+
+      def askHadoopConf[R](implicit m: HadoopReader <= R): Eff[R, HadoopConf] =
+        ReaderEffect.ask(Member.untagMember[Reader[HadoopConf, ?], R, HadoopTag](m))
+
+      def readFile[R](path: String)(implicit r: HadoopReader <= R, w: WriterString <= R): Eff[R, String] =
+        for {
+          c <- askHadoopConf(r)
+          _ <- tell("Reading from "+path)(w)
+        } yield c.mappers.toString
+
+      def runHadoopReader[R <: Effects, A](conf: HadoopConf): Eff[HadoopReader |: R, A] => Eff[R, A] =
+        (e: Eff[HadoopReader |: R, A]) => ReaderEffect.runTaggedReader(conf)(e)
+
+    }
+
+    object S3Stack {
+      trait S3Tag
+      case class S3Conf(bucket: String)
+
+      type S3Reader[A] = Reader[S3Conf, A] @@ S3Tag
+      type WriterString[A] = Writer[String, A]
+
+      type S3 = S3Reader |: WriterString |: Eval |: NoEffect
+
+      implicit def S3ReaderMember: Member[S3Reader, S3] =
+        Member.MemberNatIsMember
+
+      implicit def WriterStringMember: Member[WriterString, S3] =
+        Member.MemberNatIsMember
+
+      def askS3Conf[R](implicit m: S3Reader <= R): Eff[R, S3Conf] =
+        ReaderEffect.ask(Member.untagMember[Reader[S3Conf, ?], R, S3Tag](m))
+
+      def writeFile[R](key: String, content: String)(implicit r: S3Reader <= R, w: WriterString <= R): Eff[R, Unit] =
+        for {
+          c <- askS3Conf(r)
+          _ <- tell("Writing to bucket "+c.bucket+": "+content)(w)
+        } yield ()
+
+      def runS3Reader[R <: Effects, A](conf: S3Conf): Eff[S3Reader |: R, A] => Eff[R, A] =
+        (e: Eff[S3Reader |: R, A]) => ReaderEffect.runTaggedReader(conf)(e)
+    }
+
+    import HadoopStack._
+    import S3Stack.{WriterString=>_,_}
+
+    type HadoopS3 = S3Reader |: HadoopReader |: WriterString |: Eval |: NoEffect
+
+    val action = for {
+      s <- readFile[HadoopS3]("/tmp/data")
+      _ <- writeFile[HadoopS3]("key", s)
+    } yield ()
+
+    (action |> runS3Reader(S3Conf("bucket")) |> runHadoopReader(HadoopConf(10)) |> runWriter |> runEval |> run) ====
+      (((), List("Reading from /tmp/data", "Writing to bucket bucket: 10")))
+  }
   /**
    * Helpers
    */
