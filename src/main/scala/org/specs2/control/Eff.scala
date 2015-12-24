@@ -89,14 +89,38 @@ object Eff {
       case other   => sys.error("impossible: cannot run the effects in "+other)
     }
 
+  /**
+   * Operations of Eff[R, A] values
+   */
+
   implicit class EffOps[R <: Effects, A](e: Eff[R, A]) {
     def into[U](implicit f: IntoPoly[R, U, A]): Eff[U, A] =
       effInto(e)(f)
   }
 
+  /**
+   * An Eff[R, A] value can be transformed into an Eff[U, A]
+   * value provided that all the effects in R are also in U
+   */
   def effInto[R <: Effects, U, A](e: Eff[R, A])(implicit f: IntoPoly[R, U, A]): Eff[U, A] =
     f(e)
 
+  /**
+   * Trait for polymorphic recursion into Eff[?, A]
+   *
+   * The idea is to deal with one effect at the time:
+   *
+   *  - if the effect stack is M |: R and if U contains M
+   *    we transform each "Union[R, X]" in the Impure case into a Union for U
+   *    and we try to recurse on other effects present in R
+   *
+   *  - if the effect stack is M |: NoEffect and if U contains M we
+   *    just "inject" the M[X] effect into Eff[U, A] using the Member typeclass
+   *    if M is not present when we decompose we throw an exception. This case
+   *    should never happen because if there is no other effect in the stack
+   *    there should be at least something producing a value of type A
+   *
+   */
   trait IntoPoly[R <: Effects, U, A] {
     def apply(e: Eff[R, A]): Eff[U, A]
   }
