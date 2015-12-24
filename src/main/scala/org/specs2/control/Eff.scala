@@ -3,7 +3,7 @@ package org.specs2.control
 import scala.annotation.tailrec
 import scalaz._
 import Effects._
-import Member._
+import Member.decompose
 
 sealed trait Eff[R, A]
 
@@ -127,22 +127,57 @@ object Eff {
     loop(effects, recurse.init)
   }
 
+  implicit class EffOps[R <: Effects, A](e: Eff[R, A]) {
+    def into[U](implicit f: IntoPoly[R, U, A]): Eff[U, A] =
+      effInto(e)(f)
+  }
 
+  def effInto[R <: Effects, U, A](e: Eff[R, A])(implicit f: IntoPoly[R, U, A]): Eff[U, A] =
+    f(e)
+
+  trait IntoPoly[R <: Effects, U, A] {
+    def apply(e: Eff[R, A]): Eff[U, A]
+  }
+
+  implicit def intoNoEff[M[_], U, A](implicit m: Member[M, M |: NoEffect], mu: Member[M, U]): IntoPoly[M |: NoEffect, U, A] =
+    new IntoPoly[M |: NoEffect, U, A] {
+      def apply(e: Eff[M |: NoEffect, A]): Eff[U, A] = {
+
+        e match {
+          case Pure(a) =>
+            EffMonad[U].point(a)
+
+          case Impure(u, c) =>
+            decompose(u) match {
+              case \/-(mx) => impure[U, A, Any](mu.inject(mx), Arrs.singleton(x => effInto(c(x))))
+              case -\/(u1) => sys.error("impossible")
+            }
+        }
+      }
+    }
+
+  implicit def intoEff[M[_], R <: Effects, U, A](implicit m: Member[M, M |: R], mu: Member[M, U], recurse: IntoPoly[R, U, A]): IntoPoly[M |: R, U, A] =
+    new IntoPoly[M |: R, U, A] {
+      def apply(e: Eff[M |: R, A]): Eff[U, A] = {
+
+        e match {
+          case Pure(a) =>
+            EffMonad[U].point(a)
+
+          case Impure(u, c) =>
+            decompose(u) match {
+              case \/-(mx) => impure[U, A, Any](mu.inject(mx), Arrs.singleton(x => effInto(c(x))))
+              case -\/(u1) => recurse(impure[R, A, Any](u1, c.asInstanceOf[Arrs[R, Any, A]]))
+            }
+        }
+      }
+    }
 }
 
-case class Arrs[R, A, B] private(functions: Vector[Any => Eff[R, Any]]) {
+case class Arrs[R, A, B](functions: Vector[Any => Eff[R, Any]]) {
   def append[C](f: B => Eff[R, C]): Arrs[R, A, C] =
     Arrs(functions :+ f.asInstanceOf[Any => Eff[R, Any]])
 
-  /**
-   * qApp :: Arrs r b w → b → Eff r w
-   * qApp q x = case tviewl q of
-   *   TOne k → k x
-   *   k : | t → bind’ (k x) t
-   *   where bind’ :: Eff r a → Arrs r a b → Eff r b
-   *         bind’ (Pure y) k = qApp k y
-   * bind’ (Impure u q) k = Impure u (q >< k)
-   */
   def apply(a: A): Eff[R, B] = {
     @tailrec
     def go(fs: Vector[Any => Eff[R, Any]], v: Any): Eff[R, B] = {

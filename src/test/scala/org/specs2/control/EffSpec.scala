@@ -11,6 +11,7 @@ import scalaz._, Scalaz._
 import EvalEffect._
 import Member.{<=}
 import scalacheck.ScalazProperties._
+import Eff._
 
 class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
@@ -162,10 +163,10 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
       def askHadoopConf[R](implicit m: HadoopReader <= R): Eff[R, HadoopConf] =
         ReaderEffect.ask(Member.untagMember[Reader[HadoopConf, ?], R, HadoopTag](m))
 
-      def readFile[R](path: String)(implicit m1: HadoopReader <= R, w: WriterString <= R): Eff[R, String] =
+      def readFile[R](path: String): Eff[Hadoop, String] =
         for {
-          c <- askHadoopConf(m1)
-          _ <- tell("Reading from "+path)(w)
+          c <- askHadoopConf
+          _ <- tell("Reading from "+path)
         } yield c.mappers.toString
 
       def runHadoopReader[R <: Effects, A](conf: HadoopConf): Eff[HadoopReader |: R, A] => Eff[R, A] =
@@ -182,7 +183,6 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
       type S3 = S3Reader |: WriterString |: Eval |: NoEffect
 
-
       implicit def S3ReaderMember: Member[S3Reader, S3] =
         Member.MemberNatIsMember
 
@@ -192,10 +192,10 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
       def askS3Conf[R](implicit m: S3Reader <= R): Eff[R, S3Conf] =
         ReaderEffect.ask(Member.untagMember[Reader[S3Conf, ?], R, S3Tag](m))
 
-      def writeFile[R](key: String, content: String)(implicit m: S3Reader <= R, w: WriterString <= R): Eff[R, Unit] =
+      def writeFile[R](key: String, content: String): Eff[S3, Unit] =
         for {
-          c <- askS3Conf(m)
-          _ <- tell("Writing to bucket "+c.bucket+": "+content)(w)
+          c <- askS3Conf
+          _ <- tell("Writing to bucket "+c.bucket+": "+content)
         } yield ()
 
       def runS3Reader[R <: Effects, A](conf: S3Conf): Eff[S3Reader |: R, A] => Eff[R, A] =
@@ -213,10 +213,9 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
     }
 
-
     val action = for {
-      s <- readFile[HadoopS3]("/tmp/data")//.into[HadoopS3, HadoopReader]
-      _ <- writeFile[HadoopS3]("key", s)  //.into[HadoopS3, S3Reader]
+      s <- readFile("/tmp/data").into[HadoopS3]
+      _ <- writeFile("key", s)  .into[HadoopS3]
     } yield ()
 
     (action |> runS3Reader(S3Conf("bucket")) |> runHadoopReader(HadoopConf(10)) |> runWriter |> runEval |> run) ====
