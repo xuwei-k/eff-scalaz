@@ -29,11 +29,13 @@ object WriterEffect {
   }
 
   def runTaggedWriter[R <: Effects, T, O, A](w: Eff[({type l[X] = Writer[O, X] @@ T})#l |: R, A]): Eff[R, (A, Vector[O])] = {
-    val recurse = new StateRecurse[({type l[X] = Writer[O, X] @@ T})#l, A, (A, Vector[O])] {
+    type W[X] = Writer[O, X] @@ T
+
+    val recurse = new StateRecurse[W, A, (A, Vector[O])] {
       type S = Vector[O]
       val init = Vector()
 
-      def apply[X](xt: Writer[O, X] @@ T, s: Vector[O]): (X, Vector[O]) =
+      def apply[X](xt: W[X], s: Vector[O]): (X, Vector[O]) =
         Tag.unwrap(xt) match {
           case x => (x.run._2, s :+ x.run._1)
         }
@@ -42,7 +44,7 @@ object WriterEffect {
         (a, s)
     }
 
-    interpretState1[R, ({type l[X] = Writer[O, X] @@ T})#l, A, (A, Vector[O])]((a: A) => (a, Vector()))(recurse)(w)
+    interpretState1[R, W, A, (A, Vector[O])]((a: A) => (a, Vector()))(recurse)(w)
   }
 
 }
