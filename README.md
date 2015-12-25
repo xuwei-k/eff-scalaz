@@ -1,5 +1,7 @@
 # eff
 
+[![Build Status](https://travis-ci.org/etorreborre/eff.png?branch=master)](https://travis-ci.org/etorreborre/eff)
+
 *** WARNING: this is still work in progress! ***
 
 Monadic effects in Scala.
