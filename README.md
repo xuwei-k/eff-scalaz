@@ -1,5 +1,7 @@
 # eff
 
+*** WARNING: this is still work in progress! ***
+
 Monadic effects in Scala.
 
 This library uses a "free-er" monad and an "open-union" of effects to create monadic "stacks" as described in 
