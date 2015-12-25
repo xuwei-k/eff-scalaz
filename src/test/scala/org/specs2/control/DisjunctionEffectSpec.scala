@@ -6,7 +6,7 @@ import Effects._
 import Eff._
 import DisjunctionEffect._
 import ReaderEffect._
-import Member._
+import MemberNat._
 import MemberNat._
 
 import scalaz._, Scalaz._

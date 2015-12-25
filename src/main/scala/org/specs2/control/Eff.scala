@@ -3,7 +3,7 @@ package org.specs2.control
 import scala.annotation.tailrec
 import scalaz._
 import Effects._
-import Member.decompose
+import Union.decompose
 
 /**
  * Effects of type R, returning a value of type A

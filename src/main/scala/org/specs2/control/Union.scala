@@ -31,6 +31,19 @@ object Union {
 
   def next[O[_], R <: Effects, A](u: Union[R, A]): Union[O |: R, A] =
     UnionNext(u)
+
+  /**
+   * decompose a union starting with a given effect into
+   *
+   *  - a value for that effect type if there is one
+   *  - the union with the remaining effects
+   */
+  def decompose[T[_], R <: Effects, V](u: Union[T |: R, V]): Union[R, V] \/ T[V] =
+    u match {
+      case UnionNow(tv)     => tv.right
+      case UnionNext(union) => union.left
+    }
+
 }
 
 /**
@@ -52,7 +65,7 @@ object Member {
   /**
    * Implicits for determining if an effect T is member of a stack R
    *
-   * This uses another typeclass, MemberNat which tracks the "depth" of the effect in the stack R
+   * Member uses MemberNat which tracks the "depth" of the effect in the stack R
    * using type-level naturals
    */
   implicit def MemberNatIsMember[T[_], R <: Effects, N <: Nat](implicit m: MemberNat[T, R, N], p: P[N]): Member[T, R] = new Member[T, R] {
@@ -62,18 +75,6 @@ object Member {
     def project[V](u: Union[R, V]): Option[T[V]] =
       m.project(p, u)
   }
-
-  /**
-   * decompose a union starting with a given effect into
-   *
-   *  - a value for that effect type if there is one
-   *  - the union with the remaining effects
-   */
-  def decompose[T[_], R <: Effects, V](u: Union[T |: R, V]): Union[R, V] \/ T[V] =
-    u match {
-      case UnionNow(tv)     => tv.right
-      case UnionNext(union) => union.left
-    }
 
   /**
    * helper method to untag a tagged effect
@@ -110,6 +111,7 @@ trait MemberNat[T[_], R <: Effects, N <: Nat] {
 }
 
 object MemberNat {
+
   implicit def ZeroMemberNat[T[_], R <: Effects]: MemberNat[T, T |: R, Zero] = new MemberNat[T, T |: R, Zero] {
     def inject[V](rank: P[Zero], effect: T[V]): Union[T |: R, V] =
       Union.now(effect)

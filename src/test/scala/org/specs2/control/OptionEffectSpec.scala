@@ -48,7 +48,7 @@ class OptionEffectSpec extends Specification with ScalaCheck { def is = s2"""
     // define a Reader / Option stack
     type R[A] = Reader[Int, A]
     type S = Option |: R |: NoEffect
-    import Member._
+    import MemberNat._
 
     implicit def ReaderStackMember: Member[R, S] =
       Member.MemberNatIsMember

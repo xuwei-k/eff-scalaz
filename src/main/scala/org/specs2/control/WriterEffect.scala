@@ -2,7 +2,6 @@ package org.specs2.control
 
 import Eff._
 import Effects._
-import Member._
 import Interpret._
 import scalaz._, Scalaz._
 import collection.mutable._

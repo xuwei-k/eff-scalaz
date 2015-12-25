@@ -2,7 +2,7 @@ package org.specs2.control
 
 import org.specs2.Specification
 import org.specs2.control.Effects.|:
-import Member._
+import MemberNat._
 import scala.collection.mutable.ListBuffer
 import EvalEffect._
 import Eff._

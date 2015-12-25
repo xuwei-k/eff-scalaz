@@ -7,9 +7,8 @@ import WarningsEffect._
 import ConsoleEffect._
 import EvalEffect._
 import ErrorEffect._
-import Member._
 import MemberNat._
-
+import Member.{<=}
 
 /**
  * This is an example of a stack of effect with:

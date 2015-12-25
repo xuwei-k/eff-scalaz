@@ -1,7 +1,7 @@
 package org.specs2.control
 
 import Effects._
-import Member._
+import Union._
 import Eff._
 import scalaz._
 

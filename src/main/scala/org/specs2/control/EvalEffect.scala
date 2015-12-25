@@ -3,7 +3,6 @@ package control
 
 import Eff._
 import Effects._
-import org.specs2.control.Member._
 import scala.util.control.NonFatal
 import scalaz._
 import scalaz.effect.IO
