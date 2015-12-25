@@ -93,6 +93,21 @@ val result: (Int, List[String]) =
 
 result === ((32, List("START: the start value is 5", "END")))
 ```
+
+## Out of the box
+
+This library comes with a few available effects
+
+ Name                | Description
+ ------------------- | ---------- 
+ EvalEffect          | an effect for delayed computations
+ OptionEffect        | an effect for optional computations, stopping when there's no available value
+ DisjunctionEffect   | an effect for computations with failures, stopping when there is a failure
+ ErrorEffect         | a mix of Eval and Disjunction, catching exceptions and returning them as failures
+ ReaderEffect        | an effect for depending on a configuration or an environment
+ WriterEffect        | an effect to log messages
+ StateEffect         | an effect to pass state around
+
   
 ## Creating and implementing effects
 
@@ -100,7 +115,7 @@ It is possible to create an Effect for `scala.concurrent.Future` for example.
 We need
 
  - a base type. We select `Future[() => A]` to avoid values to be evaluated straight away
- - a method to send values of type `A` into `Eff[R, A`
+ - a method to send values of type `A` into `Eff[R, A]`
  - an interpreter
 
 ```
@@ -142,9 +157,9 @@ def futureEffect = {
   (action |> runFuture(3.seconds) |> run) ==== 3
 ```        
 
-Writing interpreters can be a bit tricky, especially to keep them stack-safe. There is no method, at the moment for writing
-a generic stack-safe interpreters but the `Interpret` objects offers several support traits and functions to write some of 
-them. In the case, the interpretation doesn't need to pass state around so we can use the `Recurse` trait. This kind of 
+Writing interpreters can be a bit tricky, especially to keep them stack-safe. There is no method at the moment for writing
+generic stack-safe interpreters but the `Interpret` objects offers several support traits and functions to write some of 
+them. In this case, the interpretation doesn't need to pass state around so we can use the `Recurse` trait. This kind of 
 implementation is shared by many different monads, like `Reader`, `Eval`, `Option` but not `Writer`, `State` or `List` for 
 example.
 
@@ -161,7 +176,7 @@ There are 2 ways to create effectful computations for a given effect `M`:
    } yield i
  ```
  
- For a given domain, this can a be a bit annoying to annotate all the methods like askAndTell with all the set of required
+ For a given domain, this can a be a bit annoying to annotate all the methods like `askAndTell` with the set of all required
  effect members. So you might want to declare, for that domain, a stack of all the effects you are going to use and directly
  create values for that stack:
 ```
@@ -177,6 +192,9 @@ There are 2 ways to create effectful computations for a given effect `M`:
 The trouble, and this also arises with monad transformers, is when you want to work with different stacks having different
 sets of effects. In that case you can use the `into` method to "unify" the effects of 2 stacks into 1:
 ```
+type Hadoop = HadoopReader |: WriterString |: Eval |: NoEffect
+type S3     = S3Reader     |: WriterString |: Eval |: NoEffect
+
 type HadoopS3 = S3Reader |: HadoopReader |: WriterString |: Eval |: NoEffect
 
 // use both the Hadoop stack and the S3 stack
@@ -186,4 +204,4 @@ val action = for {
 } yield ()
 ``` 
 
-You can find a fully working example of this approach in `src/test/org.specs2.example/StacksSpec`. 
+You can find a fully working example of this approach in `src/test/org/specs2/example/StacksSpec`. 
