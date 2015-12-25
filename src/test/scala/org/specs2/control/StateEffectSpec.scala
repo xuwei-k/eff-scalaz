@@ -4,17 +4,18 @@ package control
 import Eff._
 import Effects._
 import StateEffect._
-import scalaz._, Scalaz.{get =>_, put =>_, _}
+import scalaz._, Scalaz.{get =>_, put =>_, modify => _, _}
 
 class StateEffectSpec extends Specification with ScalaCheck { def is = s2"""
 
- The state monad can be used to modify state $modifyState
+ The state monad can be used to put/get state $putGetState
+ modify can be used to modify the current state $modifyState
 
  The Eff monad is stack safe with State $stacksafeState
 
 """
 
-  def modifyState = {
+  def putGetState = {
     val action: Eff[E, String] = for {
       a <- get[E, Int]
       h <- EffMonad[E].point("hello")
@@ -24,7 +25,17 @@ class StateEffectSpec extends Specification with ScalaCheck { def is = s2"""
       w <- EffMonad[E].point("world")
     } yield h+" "+w
 
-    run(StateEffect.runState(5)(action)) ==== (("hello world", 20))
+    run(runState(5)(action)) ==== (("hello world", 20))
+  }
+
+  def modifyState = {
+    val action: Eff[E, String] = for {
+       a <- get[E, Int]
+       _ <- put(a + 1)
+       _ <- modify[E, Int](_ + 10)
+    } yield a.toString
+
+    run(execZero(action)) ==== 11
   }
 
   def stacksafeState = {
