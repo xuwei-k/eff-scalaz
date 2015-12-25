@@ -30,7 +30,7 @@ A monadic action is modelled as a value of type `Eff[R, A]` where `R` denotes a 
 returned by the computation, possibly triggering some effects when evaluated.
 
 The effects `R` are modelled by a type-level list of "Effect constructors", for example:
-```
+```scala
  type R = Reader[Int, ?] |: Writer[String, ?] |: Eval |: NoEffect     
 ```
 
@@ -43,7 +43,7 @@ The stack `R` above declares 3 effects:
 Those 3 effects come with the library but it is easy to create your own as well. 
  
 A typical computation with such a stack would be:
-```
+```scala
 import scalaz._, Scalaz._
 import org.specs2.control._
 import ReaderEffect._
@@ -121,7 +121,7 @@ We need
  - a method to send values of type `A` into `Eff[R, A]`
  - an interpreter
 
-```
+```scala
 import scala.concurrent._, duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import Interpret._
@@ -171,7 +171,7 @@ example.
 There are 2 ways to create effectful computations for a given effect `M`:
 
  - require a stack `R` and `M <= R` (which is an alias for `implicit m: Member[M, R]`)
-```
+```scala
  def askAndTell[R](implicit m: ReaderInt <= M, w: WriterString <= R): Eff[R, Int] = 
    for {
      i <- ask[R, Int]
@@ -182,7 +182,7 @@ There are 2 ways to create effectful computations for a given effect `M`:
  For a given domain, this can a be a bit annoying to annotate all the methods like `askAndTell` with the set of all required
  effect members. So you might want to declare, for that domain, a stack of all the effects you are going to use and directly
  create values for that stack:
-```
+```scala
  type RW = ReaderInt |: WriterString |: NoEffect
 
  def askAndTell: Eff[RW, Int] = 
@@ -194,7 +194,7 @@ There are 2 ways to create effectful computations for a given effect `M`:
 
 The trouble, and this also arises with monad transformers, is when you want to work with different stacks having different
 sets of effects. In that case you can use the `into` method to "unify" the effects of 2 stacks into 1:
-```
+```scala
 type Hadoop = HadoopReader |: WriterString |: Eval |: NoEffect
 type S3     = S3Reader     |: WriterString |: Eval |: NoEffect
 
