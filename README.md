@@ -109,6 +109,7 @@ This library comes with a few available effects
  ReaderEffect        | an effect for depending on a configuration or an environment
  WriterEffect        | an effect to log messages
  StateEffect         | an effect to pass state around
+ ListEffect          | an effect for computations returning several values
 
   
 ## Creating and implementing effects
