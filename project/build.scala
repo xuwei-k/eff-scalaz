@@ -1,5 +1,7 @@
 import sbt._
 import Keys._
+import com.ambiata.promulgate.project.ProjectPlugin.promulgate
+import xerial.sbt.Sonatype._
 
 object build extends Build {
   type Settings = Def.Setting[_]
@@ -11,7 +13,8 @@ object build extends Build {
                dependencies             ++
                projectSettings          ++
                compilationSettings      ++
-               testingSettings
+               testingSettings          ++
+               publicationSettings
     )
 
   lazy val dependencies: Seq[Settings] =
@@ -50,4 +53,38 @@ object build extends Build {
     javaOptions += "-Xmx3G"
   )
 
+  lazy val publicationSettings: Seq[Settings] =
+    promulgate.library("org.specs2.info.eff", "specs2") ++
+    Seq(
+    publishTo in Global <<= version { v: String =>
+      val nexus = "https://oss.sonatype.org/"
+      Some("staging" at nexus + "service/local/staging/deploy/maven2")
+    },
+    publishMavenStyle := true,
+    publishArtifact in Test := false,
+    pomIncludeRepository := { x => false },
+    pomExtra := (
+      <url>http://specs2.org/</url>
+        <licenses>
+          <license>
+            <name>MIT-style</name>
+            <url>http://www.opensource.org/licenses/mit-license.php</url>
+            <distribution>repo</distribution>
+          </license>
+        </licenses>
+        <scm>
+          <url>http://github.com/etorreborre/eff</url>
+          <connection>scm:http:http://etorreborre@github.com/etorreborre/eff.git</connection>
+        </scm>
+        <developers>
+          <developer>
+            <id>etorreborre</id>
+            <name>Eric Torreborre</name>
+            <url>http://etorreborre.blogspot.com/</url>
+          </developer>
+        </developers>
+    ),
+    credentials := Seq(Credentials(Path.userHome / ".sbt" / "specs2.credentials"))
+  ) ++
+  sonatypeSettings
 }
