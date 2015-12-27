@@ -1,7 +1,4 @@
+.DS_Store
 .idea
-.cache
-.classpath
-.project
-.settings/
 target/
-.idea
+.settings

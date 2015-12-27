@@ -59,11 +59,11 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
    * HELPERS
    */
 
-  def runWith(i: Int, j: Int, printer: String => Unit = s => ()): (Error \/ Int, Vector[String]) =
+  def runWith(i: Int, j: Int, printer: String => Unit = s => ()): (Error \/ Int, List[String]) =
     runAction(actions(i, j), printer)
 
   /** specifying the stack is enough to run it */
-  def runWithUnbound(i: Int, j: Int, printer: String => Unit = s => ()): (Error \/ Int, Vector[String]) =
+  def runWithUnbound(i: Int, j: Int, printer: String => Unit = s => ()): (Error \/ Int, List[String]) =
     runAction(unboundActions[ActionStack](i, j), printer)
 
   /**
