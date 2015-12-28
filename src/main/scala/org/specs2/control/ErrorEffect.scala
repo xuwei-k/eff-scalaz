@@ -69,7 +69,7 @@ trait ErrorEffect[F] { outer =>
    * OPERATIONS
    */
 
-  implicit class ErrorEffectOps[R, A](action: Eff[R, A]) {
+  implicit class ErrorEffectOps[R <: Effects, A](action: Eff[R, A]) {
     def andFinally(last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] =
       outer.andFinally(action, last)
 
@@ -82,57 +82,54 @@ trait ErrorEffect[F] { outer =>
    *
    * The second action must be executed whether the first is successful or not
    */
-  def andFinally[R, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] =
-    (action, last) match {
+  def andFinally[R <: Effects, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] =
+    action.runM(new Runner[ErrorOrOk, R, A] {
+      def onPure(a: A): Eff[R, A] = last.as(a)
 
-      case (Pure(e), Pure(l)) =>
-        action
-
-      case (Pure(_), Impure(u, c)) =>
-        action >>= ((a: A) => last.as(a))
-
-      case (Impure(u1, c1), Impure(u2, c2)) =>
-        (m.project(u1), m.project(u2)) match {
-          case (Some(\/-(e1)), Some(\/-(e2))) =>
-            ok {
-              try     c1(e1.value).andFinally(last)
-              catch { case NonFatal(t) => e2.value; outer.exception[R, A](t)(m) }
-            }(m).flatMap(identity _)
-
-          case (None, Some(\/-(e2))) =>
-            last.flatMap(_ => action)
-
-          case _ =>
-            action
-        }
-
-      case _ =>
-        action
-    }
+      def onEffect[X](mx: ErrorOrOk[X], cx: Arrs[R, X, A]): Eff[R, A] =
+        try mx.fold(e => last.flatMap(_ => outer.error[R, A](e)), x => cx(x.value).andFinally(last))
+        catch { case NonFatal(t) => last.flatMap(_ => outer.exception[R, A](t)) }
+    })
+//
+//    (action, last) match {
+//
+//      case (Pure(e), Pure(l)) =>
+//        action
+//
+//      case (Pure(_), Impure(u, c)) =>
+//        action >>= ((a: A) => last.as(a))
+//
+//      case (Impure(u1, c1), Impure(u2, c2)) =>
+//        (m.project(u1), m.project(u2)) match {
+//          case (Some(\/-(e1)), Some(\/-(e2))) =>
+//            ok {
+//              try     c1(e1.value).andFinally(last)
+//              catch { case NonFatal(t) => e2.value; }
+//            }(m).flatMap(identity _)
+//
+//          case (None, Some(\/-(e2))) =>
+//            last.flatMap(_ => action)
+//
+//          case _ =>
+//            action
+//        }
+//
+//      case _ =>
+//        action
+//    }
 
   /**
    * evaluate 2 actions possibly having error effects
    *
    * The second action must be executed if the first one is not successful
    */
-  def orElse[R, A](action1: Eff[R, A], action2: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
-    (action1, action2) match {
-      case (Pure(_), _) =>
-        action1
-
-      case (Impure(u1, c1), _) =>
-        m.project(u1) match {
-          case Some(\/-(e1)) =>
-            try c1(e1.value).orElse(action2)
-            catch { case NonFatal(_) => action2 }
-
-          case Some(-\/(_)) =>
-            action2
-
-          case None =>
-            action1
-        }
-    }
+  def orElse[R <: Effects, A](action1: Eff[R, A], action2: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
+    action1.runM(new Runner[ErrorOrOk, R, A] {
+      def onPure(a: A) = EffMonad[R].point(a)
+      def onEffect[X](mx: ErrorOrOk[X], cx: Arrs[R, X, A]): Eff[R, A] =
+        try mx.fold(e => action2, x => cx(x.value))
+        catch { case NonFatal(_) => action2 }
+    })
 }
 
 /**

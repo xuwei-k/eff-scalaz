@@ -1,5 +1,7 @@
 package org.specs2.control
 
+import org.specs2.control.Member.<=
+
 import scala.annotation.tailrec
 import scalaz._
 import Effects._
@@ -93,9 +95,38 @@ object Eff {
    * Operations of Eff[R, A] values
    */
 
+  trait Mapper[M[_]] {
+    def apply[X](mx: M[X]): M[X]
+  }
+
+  trait Runner[M[_], R, A] {
+    def onPure(a: A): Eff[R, A]
+    def onEffect[X](mx: M[X], cx: Arrs[R, X, A]): Eff[R, A]
+  }
+
   implicit class EffOps[R <: Effects, A](e: Eff[R, A]) {
     def into[U](implicit f: IntoPoly[R, U, A]): Eff[U, A] =
       effInto(e)(f)
+
+    def mapM[M[_]](fx: Mapper[M])(implicit m: M <= R): Eff[R, A] =
+      e match {
+        case Pure(a) => Pure(a)
+        case Impure(u, c) =>
+          m.project(u) match {
+            case Some(mx) => Impure(m.inject(fx(mx)), c)
+            case None     => Impure(u, c)
+          }
+      }
+
+    def runM[M[_]](runner: Runner[M, R, A])(implicit m: M <= R): Eff[R, A] =
+      e match {
+        case Pure(a) => runner.onPure(a)
+        case Impure(u, c) =>
+          m.project(u) match {
+            case Some(mx) => runner.onEffect(mx, c)
+            case None     => Impure(u, c)
+          }
+      }
   }
 
   /**
@@ -202,6 +233,9 @@ case class Arrs[R, A, B](functions: Vector[Any => Eff[R, Any]]) {
 
     go(functions, a)
   }
+
+  def contramap[C](f: C => A): Arrs[R, C, B] =
+    Arrs(((c: Any) => Eff.EffMonad[R].point(f(c.asInstanceOf[C]).asInstanceOf[Any])) +: functions)
 }
 
 object Arrs {
