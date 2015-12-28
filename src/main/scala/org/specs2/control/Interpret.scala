@@ -3,7 +3,7 @@ package org.specs2.control
 import Effects._
 import Union._
 import Eff._
-import scalaz._
+import scalaz._, Scalaz._
 
 /**
  * Support methods to create an interpreter (or "effect handlers") for a given Eff[M |: R, A].
@@ -22,8 +22,10 @@ import scalaz._
  *  2. interpretState + StateRecurse
  *
  *  This interpreter is used to handle effects which either return a value X from M[X] or stops with Eff[R, B]
-
  *
+ *  3. interpretLoop + Loop
+ *
+ *  The most generic kind of interpreter where we can even recurse in the case of Pure(a) (See ListEffect for such a use)
  */
 trait Interpret {
 
@@ -41,17 +43,17 @@ trait Interpret {
    * interpret the effect M in the M |: R stack
    */
   def interpret[R <: Effects, M[_], A, B](pure: A => Eff[R, B], recurse: Recurse[M, R, B])(effects: Eff[M |: R, A]): Eff[R, B] = {
-    val recurseState = new MonadicRecurse[M, A, Eff[R, B]] {
+    val loop = new Loop[M, R, A, Eff[R, B]] {
       type S = Unit
       val init = ()
 
-      def apply[X](x: M[X], s: Unit): (X, Unit) \/ Eff[R, B] =
-        recurse(x).leftMap((_, ()))
+      def onPure(a: A, s: Unit): (Eff[M |: R, A], Unit) \/ Eff[R, B] =
+        \/-(pure(a))
 
-      def finalize(a: A, s: Unit): Eff[R, B] =
-        pure(a)
+      def onEffect[X](mx: M[X], continuation: Arrs[M |: R, X, A], s: Unit): (Eff[M |: R, A], Unit) \/ Eff[R, B] =
+        recurse(mx).leftMap(x => (continuation(x), ()))
     }
-    interpretMonadic(pure, recurseState)(effects)
+    interpretLoop(pure, loop)(effects)
   }
 
   /**
@@ -81,17 +83,17 @@ trait Interpret {
    * interpret the effect M in the M |: R stack, keeping track of some state
    */
   def interpretState[R <: Effects, M[_], A, B](pure: A => Eff[R, B], recurse: StateRecurse[M, A, B])(effects: Eff[M |: R, A]): Eff[R, B] = {
-    val recurseExit = new MonadicRecurse[M, A, Eff[R, B]] {
+    val loop = new Loop[M, R, A, Eff[R, B]] {
       type S = recurse.S
       val init: S = recurse.init
 
-      def apply[X](x: M[X], s: S): (X, S) \/ Eff[R, B] =
-        -\/(recurse(x, s))
+      def onPure(a: A, s: S): (Eff[M |: R, A], S) \/ Eff[R, B] =
+        \/-(EffMonad[R].point(recurse.finalize(a, s)))
 
-      def finalize(a: A, s: S): Eff[R, B] =
-        EffMonad[R].point(recurse.finalize(a, s))
+      def onEffect[X](mx: M[X], continuation: Arrs[M |: R, X, A], s: S): (Eff[M |: R, A], S) \/ Eff[R, B] =
+        -\/(recurse(mx, s).leftMap(x => continuation(x)))
     }
-    interpretMonadic(pure, recurseExit)(effects)
+    interpretLoop(pure, loop)(effects)
   }
 
   /**
@@ -103,11 +105,11 @@ trait Interpret {
   /**
    * Generalisation of Recurse and StateRecurse
    */
-  trait MonadicRecurse[M[_], A, B] {
+  trait Loop[M[_], R <: Effects, A, B] {
     type S
     val init: S
-    def apply[X](x: M[X], s: S): (X, S) \/ B
-    def finalize(a: A, s: S): B
+    def onPure(a: A, s: S): (Eff[M |: R, A], S) \/ B
+    def onEffect[X](x: M[X], continuation: Arrs[M |: R, X, A], s: S): (Eff[M |: R, A], S) \/ B
   }
 
   /**
@@ -115,28 +117,35 @@ trait Interpret {
    *
    * This method contains a loop which is stack-safe
    */
-  def interpretMonadic[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], recurse: MonadicRecurse[M, A, Eff[R, B]])(effects: Eff[M |: R, A]): Eff[R, B] = {
-    def loop(eff: Eff[M |: R, A], s: recurse.S): Eff[R, B] = {
+  def interpretLoop[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], loop: Loop[M, R, A, Eff[R, B]])(effects: Eff[M |: R, A]): Eff[R, B] = {
+
+    def go(eff: Eff[M |: R, A], s: loop.S): Eff[R, B] = {
       eff match {
         case Pure(a) =>
-          recurse.finalize(a, s)
+          loop.onPure(a, s) match {
+            case -\/((a1, s1)) => go(a1, s1)
+            case \/-(b)  => b
+          }
 
         case Impure(union, continuation) =>
           decompose(union) match {
             case \/-(v) =>
-              recurse(v, s) match {
+              loop.onEffect(v, continuation, s) match {
+                case -\/((x, s1)) => go(x, s1)
                 case \/-(b)       => b
-                case -\/((x, s1)) => loop(continuation(x), s1)
               }
 
             case -\/(u1) =>
-              Impure[R, u1.X, B](u1, Arrs.singleton(x => loop(continuation(x), s)))
+              Impure[R, u1.X, B](u1, Arrs.singleton(x => go(continuation(x), s)))
           }
       }
     }
 
-    loop(effects, recurse.init)
+    go(effects, loop.init)
   }
+
+  def interpretLoop1[R <: Effects, M[_], A, B, S](pure: A => B)(loop: Loop[M, R, A, Eff[R, B]])(effects: Eff[M |: R, A]): Eff[R, B] =
+    interpretLoop((a: A) => EffMonad[R].point(pure(a)), loop)(effects)
 
 }
 

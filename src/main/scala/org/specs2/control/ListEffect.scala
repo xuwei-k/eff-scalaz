@@ -4,7 +4,8 @@ import Eff._
 import Effects._
 import Member._
 import scala.collection.mutable.ListBuffer
-import scalaz.{-\/, \/-}
+import scalaz.{\/, -\/, \/-}
+import Interpret._
 
 /**
  * Effect for computations possibly returning several values
@@ -24,35 +25,30 @@ object ListEffect {
     send[List, R, A](as)
 
   /** run an effect stack starting with a list effect */
-  def runList[R <: Effects, A, B](effects: Eff[List |: R, A]): Eff[R, List[A]] = {
-    def loop(eff: Eff[List |: R, A], unevaluated: List[Eff[List |: R, A]], result: ListBuffer[A]): Eff[R, List[A]] = {
-      eff match {
-        case Pure(a) =>
-          unevaluated match {
-            case head :: tail => loop(head, tail, result :+ a)
-            case Nil          => EffMonad[R].point((result :+ a).toList)
-          }
+  def runList[R <: Effects, A](effects: Eff[List |: R, A]): Eff[R, List[A]] = {
+    val loop = new Loop[List, R, A, Eff[R, List[A]]] {
+      type S = (List[Eff[List |: R, A]], ListBuffer[A])
+      val init = (List[Eff[List |: R, A]](), new ListBuffer[A])
 
-        case Impure(union, continuation) =>
-          Union.decompose[List, R, union.X](union) match {
-            case \/-(v) =>
-              v match {
-                case List() =>
-                  unevaluated match {
-                    case head :: tail => loop(head, tail, result)
-                    case Nil          => EffMonad[R].point(result.toList)
-                  }
+      def onPure(a: A, s: S): (Eff[List |: R, A], S) \/ Eff[R, List[A]] =
+        s match {
+          case (head :: tail, result) => -\/((head, (tail, result :+ a)))
+          case (List(), result)       => \/-(EffMonad[R].point((result :+ a).toList))
+        }
 
-                case head :: tail =>
-                  loop(continuation(head), tail.asInstanceOf[List[A]].map(continuation.apply) ++ unevaluated, result)
-              }
+      def onEffect[X](l: List[X], continuation: Arrs[List |: R, X, A], s: S): (Eff[List |: R, A], S) \/ Eff[R, List[A]] =
+        (l, s) match {
+          case (List(), (head :: tail, result)) =>
+            -\/((head, (tail, result)))
 
-            case -\/(u1) =>
-              Impure[R, u1.X, List[A]](u1, Arrs.singleton(x => loop(continuation(x), unevaluated, result)))
-          }
-      }
+          case (List(), (List(), result)) =>
+            \/-(EffMonad[R].point(result.toList))
+
+          case (head :: tail, (unevaluated, result)) =>
+            -\/((continuation(head), (tail.asInstanceOf[List[A]].map(a => continuation(a.asInstanceOf[X])) ++ unevaluated, result)))
+        }
     }
 
-    loop(effects, List(), new ListBuffer)
+    interpretLoop1((a: A) => List(a))(loop)(effects)
   }
 }
