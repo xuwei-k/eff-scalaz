@@ -23,6 +23,9 @@ object depend {
     "com.ambiata" %% "disorder" % disorderVersion % "test"
   )
 
+  val scalameter = Seq(
+    "com.storm-enroute" %% "scalameter" % "0.7")
+
   val resolvers = Seq(
       Resolver.sonatypeRepo("releases")
     , Resolver.typesafeRepo("releases")

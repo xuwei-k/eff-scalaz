@@ -21,7 +21,8 @@ object build extends Build {
     Seq[Settings](libraryDependencies ++=
       depend.scalaz     ++
       depend.specs2     ++
-      depend.disorder
+      depend.disorder   ++
+      depend.scalameter
     ) ++
     Seq(resolvers := depend.resolvers)
 
@@ -47,7 +48,7 @@ object build extends Build {
 
   lazy val testingSettings: Seq[Settings] = Seq(
     initialCommands in (Test, console) := "import org.specs2._",
-    testFrameworks := Seq(TestFrameworks.Specs2),
+    testFrameworks := Seq(TestFrameworks.Specs2, new TestFramework("org.scalameter.ScalaMeterFramework")),
     logBuffered := false,
     cancelable := true,
     javaOptions += "-Xmx3G"
