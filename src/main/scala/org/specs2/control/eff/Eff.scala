@@ -1,11 +1,10 @@
-package org.specs2.control
-
-import org.specs2.control.Member.<=
+package org.specs2.control.eff
 
 import scala.annotation.tailrec
 import scalaz._
+import Union._
 import Effects._
-import Union.decompose
+import Member.{<=}
 
 /**
  * Effects of type R, returning a value of type A

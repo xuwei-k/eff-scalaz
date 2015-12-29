@@ -1,10 +1,10 @@
-package org.specs2.control
+package org.specs2.control.eff
 
-import scalaz._
-import syntax.functor._
 import Eff._
 import Effects._
 import Interpret._
+
+import scalaz._, Scalaz._
 
 /**
  * Effect for computation which can fail

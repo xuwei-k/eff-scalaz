@@ -1,12 +1,12 @@
 package org.specs2.example
 
 import org.specs2._
-import control._
+import control.eff._
 import Effects._
 import EvalEffect._
+import Eff._
 import Member.{<=}
 import WriterEffect._
-import Eff._
 import scalaz._, Scalaz._
 
 class StacksSpec extends Specification { def is = s2"""

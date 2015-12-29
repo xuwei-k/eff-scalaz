@@ -1,9 +1,9 @@
-package org.specs2.control
+package org.specs2.control.eff
 
+import scalaz.{-\/, \/-}
+import Interpret._
 import Eff._
 import Effects._
-import Interpret._
-import scalaz.{-\/, \/-}
 
 /**
  * Effect for optional computations

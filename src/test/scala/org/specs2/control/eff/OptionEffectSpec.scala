@@ -1,11 +1,11 @@
-package org.specs2
-package control
+package org.specs2.control.eff
 
 import com.ambiata.disorder._
-import OptionEffect._
+import org.specs2.{ScalaCheck, Specification}
 import Eff._
 import Effects._
 import ReaderEffect._
+import OptionEffect._
 
 import scalaz._, Scalaz._
 

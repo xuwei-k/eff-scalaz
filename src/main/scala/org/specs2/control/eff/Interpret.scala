@@ -1,9 +1,10 @@
-package org.specs2.control
+package org.specs2.control.eff
 
+import scalaz.Scalaz._
+import scalaz._
+import Eff._
 import Effects._
 import Union._
-import Eff._
-import scalaz._, Scalaz._
 
 /**
  * Support methods to create an interpreter (or "effect handlers") for a given Eff[M |: R, A].

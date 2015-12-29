@@ -1,13 +1,12 @@
-package org.specs2.example
+package org.specs2.control.eff
 
 import org.specs2._
-import org.specs2.control.Eff._
-import org.specs2.control.Effects._
-import org.specs2.control.Member.<=
-import org.specs2.control._
-import scalaz._, Scalaz._
-
+import Eff._
+import Member.<=
+import Effects._
 import ListEffect._
+
+import scalaz._, Scalaz._
 
 class ListSpec extends Specification { def is = s2"""
 

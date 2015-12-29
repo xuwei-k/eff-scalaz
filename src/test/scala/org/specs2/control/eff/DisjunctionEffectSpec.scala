@@ -1,13 +1,12 @@
-package org.specs2
-package control
+package org.specs2.control.eff
 
 import com.ambiata.disorder._
-import Effects._
-import Eff._
 import DisjunctionEffect._
+import Eff._
+import Effects._
+import MemberNat._
 import ReaderEffect._
-import MemberNat._
-import MemberNat._
+import org.specs2.{ScalaCheck, Specification}
 
 import scalaz._, Scalaz._
 

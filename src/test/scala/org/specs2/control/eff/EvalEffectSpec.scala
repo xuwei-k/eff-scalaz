@@ -1,11 +1,10 @@
-package org.specs2.control
+package org.specs2.control.eff
 
 import org.specs2.Specification
-import org.specs2.control.Effects.|:
-import MemberNat._
-import scala.collection.mutable.ListBuffer
-import EvalEffect._
 import Eff._
+import Effects._
+import EvalEffect._
+
 import scalaz._, Scalaz._
 
 class EvalEffectSpec extends Specification { def is = s2"""

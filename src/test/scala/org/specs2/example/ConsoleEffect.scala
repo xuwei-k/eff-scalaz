@@ -1,8 +1,8 @@
 package org.specs2.example
 
-import org.specs2.control.{Effects, Eff, Member, WriterEffect, Interpret}
-import Effects._
+import org.specs2.control.eff._
 import Eff._
+import Effects._
 import Interpret._
 import scalaz._, Scalaz._
 

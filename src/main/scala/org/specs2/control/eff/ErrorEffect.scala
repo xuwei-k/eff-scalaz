@@ -1,12 +1,11 @@
-package org.specs2.control
-
-import Eff._
-import Effects._
-import Member._
-import Interpret._
+package org.specs2.control.eff
 
 import scala.util.control.NonFatal
 import scalaz._, Scalaz._
+import Eff._
+import Effects._
+import Member.{<=}
+import Interpret._
 
 /**
  * Effect for computation which can fail and return a Throwable, or just stop with a failure
@@ -78,58 +77,40 @@ trait ErrorEffect[F] { outer =>
   }
 
   /**
-   * evaluate 2 actions possibly having error effects
+   * evaluate 1 actions possibly having error effects
    *
-   * The second action must be executed whether the first is successful or not
+   * Execute a second action whether the first is successful or not
    */
   def andFinally[R <: Effects, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] =
     action.runM(new Runner[ErrorOrOk, R, A] {
       def onPure(a: A): Eff[R, A] = last.as(a)
 
       def onEffect[X](mx: ErrorOrOk[X], cx: Arrs[R, X, A]): Eff[R, A] =
-        try mx.fold(e => last.flatMap(_ => outer.error[R, A](e)), x => cx(x.value).andFinally(last))
+        try mx.fold(e => last.flatMap(_ => outer.error[R, A](e)), x => andFinally(cx(x.value), last))
         catch { case NonFatal(t) => last.flatMap(_ => outer.exception[R, A](t)) }
     })
-//
-//    (action, last) match {
-//
-//      case (Pure(e), Pure(l)) =>
-//        action
-//
-//      case (Pure(_), Impure(u, c)) =>
-//        action >>= ((a: A) => last.as(a))
-//
-//      case (Impure(u1, c1), Impure(u2, c2)) =>
-//        (m.project(u1), m.project(u2)) match {
-//          case (Some(\/-(e1)), Some(\/-(e2))) =>
-//            ok {
-//              try     c1(e1.value).andFinally(last)
-//              catch { case NonFatal(t) => e2.value; }
-//            }(m).flatMap(identity _)
-//
-//          case (None, Some(\/-(e2))) =>
-//            last.flatMap(_ => action)
-//
-//          case _ =>
-//            action
-//        }
-//
-//      case _ =>
-//        action
-//    }
 
   /**
-   * evaluate 2 actions possibly having error effects
+   * evaluate 1 action possibly having error effects
    *
-   * The second action must be executed if the first one is not successful
+   * Execute a second action if the first one is not successful
    */
-  def orElse[R <: Effects, A](action1: Eff[R, A], action2: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
-    action1.runM(new Runner[ErrorOrOk, R, A] {
+  def orElse[R <: Effects, A](action: Eff[R, A], onError: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
+    whenFailed(action, _ => onError)
+
+  /**
+   * evaluate 1 action possibly having error effects
+   *
+   * Execute a second action if the first one is not successful, based on the error
+   */
+  def whenFailed[R <: Effects, A](action: Eff[R, A], onError: Error => Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
+    action.runM(new Runner[ErrorOrOk, R, A] {
       def onPure(a: A) = EffMonad[R].point(a)
       def onEffect[X](mx: ErrorOrOk[X], cx: Arrs[R, X, A]): Eff[R, A] =
-        try mx.fold(e => action2, x => cx(x.value))
-        catch { case NonFatal(_) => action2 }
+        try mx.fold(e => onError(e), x => whenFailed(cx(x.value), onError))
+        catch { case NonFatal(t) => onError(-\/(t)) }
     })
+
 }
 
 /**

@@ -1,4 +1,4 @@
-package org.specs2.control
+package org.specs2.control.eff
 
 import org.specs2.Specification
 import Eff._
@@ -80,8 +80,8 @@ class ErrorEffectSpec extends Specification { def is = s2"""
   }
 
   def logException = {
-    import EvalEffect._
     import ErrorEffect._
+    import EvalEffect._
     import WriterEffect._
 
     type WriterString[A] = Writer[String, A]

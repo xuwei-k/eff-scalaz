@@ -1,8 +1,8 @@
 package org.specs2.example
 
 import org.specs2.Specification
+import org.specs2.control.eff._
 import scalaz._, Scalaz._
-import org.specs2.control._
 import ReaderEffect._
 import WriterEffect._
 import EvalEffect._

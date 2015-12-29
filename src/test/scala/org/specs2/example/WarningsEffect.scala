@@ -1,8 +1,8 @@
 package org.specs2
 package example
 
-import org.specs2.control.Effects._
-import org.specs2.control.{Effects, Eff, Member, WriterEffect}
+import org.specs2.control.eff._
+import Effects._
 import scalaz._
 
 object WarningsEffect {

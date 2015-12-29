@@ -2,7 +2,7 @@ package org.specs2
 package example
 
 import Action._
-import control.{ErrorEffect, EvalEffect, Member, Eff}
+import control.eff.{Member, EvalEffect, ErrorEffect, Eff}
 import EvalEffect._
 import WarningsEffect._
 import ConsoleEffect._

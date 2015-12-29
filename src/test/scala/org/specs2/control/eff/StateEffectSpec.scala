@@ -1,10 +1,10 @@
-package org.specs2
-package control
+package org.specs2.control.eff
 
 import Eff._
 import Effects._
+import org.specs2.{ScalaCheck, Specification}
 import StateEffect._
-import scalaz._, Scalaz.{get =>_, put =>_, modify => _, _}
+import scalaz._, Scalaz.{get => _, modify => _, put => _, _}
 
 class StateEffectSpec extends Specification with ScalaCheck { def is = s2"""
 

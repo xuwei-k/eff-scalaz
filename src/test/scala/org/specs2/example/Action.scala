@@ -1,6 +1,6 @@
 package org.specs2.example
 
-import org.specs2.control.{Effects, Eff, ErrorEffect, Member, MemberNat, EvalEffect, NoEffect}
+import org.specs2.control.eff._
 import Effects._, Eff._
 import scalaz._, Scalaz._
 import WarningsEffect._

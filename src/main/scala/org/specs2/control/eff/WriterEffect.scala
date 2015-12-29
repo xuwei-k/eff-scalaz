@@ -1,10 +1,10 @@
-package org.specs2.control
+package org.specs2.control.eff
 
+import scala.collection.mutable._
+import scalaz._, Scalaz._
 import Eff._
 import Effects._
 import Interpret._
-import scalaz._, Scalaz._
-import collection.mutable._
 
 /**
  * Effect for logging values alongside computations

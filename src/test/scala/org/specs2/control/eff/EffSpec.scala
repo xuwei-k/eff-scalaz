@@ -1,15 +1,17 @@
-package org.specs2
-package control
+package org.specs2.control.eff
 
+import com.ambiata.disorder.PositiveIntSmall
+import org.scalacheck.Arbitrary._
+import org.scalacheck._
 import Eff._
 import Effects._
 import ReaderEffect._
 import WriterEffect._
-import com.ambiata.disorder.PositiveIntSmall
-import org.scalacheck._, Arbitrary._
-import scalaz._, Scalaz._
-import scalacheck.ScalazProperties._
-import Eff._
+import org.specs2.{ScalaCheck, Specification}
+
+import scalaz.Scalaz._
+import scalaz._
+import scalaz.scalacheck.ScalazProperties._
 
 class EffSpec extends Specification with ScalaCheck { def is = s2"""
 

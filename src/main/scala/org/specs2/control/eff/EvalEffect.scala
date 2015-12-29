@@ -1,11 +1,10 @@
-package org.specs2
-package control
+package org.specs2.control.eff
 
-import Eff._
-import Effects._
 import scala.util.control.NonFatal
 import scalaz._
 import scalaz.effect.IO
+import Eff._
+import Effects._
 import Interpret._
 
 /**

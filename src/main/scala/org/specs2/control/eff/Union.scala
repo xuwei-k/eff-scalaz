@@ -1,6 +1,7 @@
-package org.specs2.control
+package org.specs2.control.eff
 
-import scalaz._, Scalaz._
+import scalaz.Scalaz._
+import scalaz._
 import Effects._
 
 /**
