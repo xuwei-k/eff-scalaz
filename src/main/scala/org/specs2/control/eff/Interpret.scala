@@ -30,6 +30,21 @@ import Union._
  */
 trait Interpret {
 
+  trait Binder[M[_], R, A, B] {
+    def apply[X](mx: M[X])(continuation: X => Eff[R, B]): Eff[R, B]
+  }
+
+
+  def handleRelay[M[_], R <: Effects, A, B](pure: A => Eff[R, B], bind: Binder[M, R, A, B])(effects: Eff[M |: R, A]): Eff[R, B] =
+    effects match {
+      case Pure(a) => pure(a)
+      case Impure(u, c) =>
+        decompose(u.asInstanceOf[Union[M |: R, A]]) match {
+          case \/-(mx) => bind(mx)(x => handleRelay(pure, bind)(c(x)))
+          case -\/(u1) => Impure(u1.asInstanceOf[Union[R, Any]], Arrs.singleton((x: Any) => handleRelay(pure, bind)(c(x))))
+        }
+    }
+
   /**
    * Helper trait for computations
    * which might produce several M[X] in a stack of effects.

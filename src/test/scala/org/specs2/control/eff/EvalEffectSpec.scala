@@ -10,6 +10,7 @@ import scalaz._, Scalaz._
 class EvalEffectSpec extends Specification { def is = s2"""
 
  run is stack safe with Eval   $stacksafeRun
+ run is stack safe with handleRelay   $stacksafeHandleRelay
 
 """
 
@@ -20,6 +21,15 @@ class EvalEffectSpec extends Specification { def is = s2"""
     val action = list.traverseU(i => EvalEffect.delay[E, Int](i))
 
     run(runEval(action)) ==== list
+  }
+
+  def stacksafeHandleRelay = {
+    type E = Eval |: NoEffect
+
+    val list = (1 to 5000).toList
+    val action = list.traverseU(i => EvalEffect.delay[E, Int](i))
+
+    run(runEvalRelay(action)) ==== list
   }
 
   def stacksafeAttempt = {

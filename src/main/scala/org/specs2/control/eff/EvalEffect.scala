@@ -34,6 +34,14 @@ object EvalEffect {
     interpret1((a: A) => a)(recurse)(r)
   }
 
+  def runEvalRelay[R <: Effects, A](r: Eff[Eval[?] |: R, A]): Eff[R, A] = {
+    val binder = new Binder[Eval, R, A, A] {
+      def apply[X](m: Eval[X])(continuation: X => Eff[R, A]) = continuation(m.value)
+    }
+
+    handleRelay((a: A) => EffMonad[R].point(a), binder)(r)
+  }
+
   def attemptEval[R <: Effects, A](r: Eff[Eval[?] |: R, A]): Eff[R, Throwable \/ A] = {
     val recurse = new Recurse[Eval, R, Throwable \/ A] {
       def apply[X](m: Eval[X]) =
