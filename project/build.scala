@@ -15,7 +15,7 @@ object build extends Build {
                compilationSettings      ++
                testingSettings          ++
                publicationSettings
-    )
+    ).configs(Benchmark).settings(inConfig(Benchmark)(Defaults.testSettings):_*)
 
   lazy val dependencies: Seq[Settings] =
     Seq[Settings](libraryDependencies ++=
@@ -51,8 +51,11 @@ object build extends Build {
     testFrameworks := Seq(TestFrameworks.Specs2, new TestFramework("org.scalameter.ScalaMeterFramework")),
     logBuffered := false,
     cancelable := true,
-    javaOptions += "-Xmx3G"
+    javaOptions += "-Xmx3G",
+    parallelExecution in Benchmark := false
   )
+
+  lazy val Benchmark = config("bench") extend Test
 
   lazy val publicationSettings: Seq[Settings] =
     promulgate.library("org.specs2.info.eff", "specs2") ++
