@@ -6,6 +6,7 @@ import Effects._
 import ErrorEffect.{ok => OK, _}
 import scala.collection.mutable.ListBuffer
 import scalaz._, Scalaz._
+import syntax.error._
 
 class ErrorEffectSpec extends Specification { def is = s2"""
 

@@ -195,6 +195,8 @@ There are 2 ways to create effectful computations for a given effect `M`:
 The trouble, and this also arises with monad transformers, is when you want to work with different stacks having different
 sets of effects. In that case you can use the `into` method to "unify" the effects of 2 stacks into 1:
 ```scala
+import org.specs2.control.eff.syntax.eff._
+
 type Hadoop = HadoopReader |: WriterString |: Eval |: NoEffect
 type S3     = S3Reader     |: WriterString |: Eval |: NoEffect
 

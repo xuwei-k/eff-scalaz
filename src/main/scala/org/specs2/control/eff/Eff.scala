@@ -78,6 +78,39 @@ object Eff {
   def impure[R, X, A](union: Union[R, X], continuation: Arrs[R, X, A]): Eff[R, A] =
     Impure[R, X, A](union, continuation)
 
+  /** map a specific effect in a stack */
+  trait Mapper[M[_]] {
+    def apply[X](mx: M[X]): M[X]
+  }
+
+  /** run a specific effect in a stack */
+  trait Runner[M[_], R, A] {
+    def onPure(a: A): Eff[R, A]
+    def onEffect[X](mx: M[X], cx: Arrs[R, X, A]): Eff[R, A]
+  }
+
+  /** map a specific effect in a stack */
+  def mapM[R, M[_], A](e: Eff[R, A], fx: Mapper[M])(implicit m: M <= R): Eff[R, A] =
+    e match {
+      case Pure(a) => Pure(a)
+      case Impure(u, c) =>
+        m.project(u) match {
+          case Some(mx) => Impure(m.inject(fx(mx)), c)
+          case None     => Impure(u, c)
+        }
+    }
+
+  /** run a specific effect in a stack */
+  def runM[R, M[_], A](e: Eff[R, A], runner: Runner[M, R, A])(implicit m: M <= R): Eff[R, A] =
+    e match {
+      case Pure(a) => runner.onPure(a)
+      case Impure(u, c) =>
+        m.project(u) match {
+          case Some(mx) => runner.onEffect(mx, c)
+          case None     => Impure(u, c)
+        }
+    }
+
   /**
    * base runner for an Eff value having no effects at all
    *
@@ -89,44 +122,6 @@ object Eff {
       case Pure(a) => a
       case other   => sys.error("impossible: cannot run the effects in "+other)
     }
-
-  /**
-   * Operations of Eff[R, A] values
-   */
-
-  trait Mapper[M[_]] {
-    def apply[X](mx: M[X]): M[X]
-  }
-
-  trait Runner[M[_], R, A] {
-    def onPure(a: A): Eff[R, A]
-    def onEffect[X](mx: M[X], cx: Arrs[R, X, A]): Eff[R, A]
-  }
-
-  implicit class EffOps[R <: Effects, A](e: Eff[R, A]) {
-    def into[U](implicit f: IntoPoly[R, U, A]): Eff[U, A] =
-      effInto(e)(f)
-
-    def mapM[M[_]](fx: Mapper[M])(implicit m: M <= R): Eff[R, A] =
-      e match {
-        case Pure(a) => Pure(a)
-        case Impure(u, c) =>
-          m.project(u) match {
-            case Some(mx) => Impure(m.inject(fx(mx)), c)
-            case None     => Impure(u, c)
-          }
-      }
-
-    def runM[M[_]](runner: Runner[M, R, A])(implicit m: M <= R): Eff[R, A] =
-      e match {
-        case Pure(a) => runner.onPure(a)
-        case Impure(u, c) =>
-          m.project(u) match {
-            case Some(mx) => runner.onEffect(mx, c)
-            case None     => Impure(u, c)
-          }
-      }
-  }
 
   /**
    * An Eff[R, A] value can be transformed into an Eff[U, A]

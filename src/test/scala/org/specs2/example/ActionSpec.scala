@@ -8,8 +8,10 @@ import WarningsEffect._
 import ConsoleEffect._
 import ErrorEffect._
 import Member.{<=}
+import org.specs2.control.eff._
 import org.specs2.matcher.DisjunctionMatchers
 import scalaz._, Scalaz._, effect.IO
+import control.eff.syntax.error._
 
 class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers { def is = s2"""
 

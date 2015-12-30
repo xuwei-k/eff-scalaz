@@ -8,6 +8,7 @@ import Eff._
 import Member.{<=}
 import WriterEffect._
 import scalaz._, Scalaz._
+import control.eff.syntax.eff._
 
 class StacksSpec extends Specification { def is = s2"""
 

@@ -65,24 +65,12 @@ trait ErrorEffect[F] { outer =>
   }
 
   /**
-   * OPERATIONS
-   */
-
-  implicit class ErrorEffectOps[R <: Effects, A](action: Eff[R, A]) {
-    def andFinally(last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] =
-      outer.andFinally(action, last)
-
-    def orElse(action2: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
-      outer.orElse(action, action2)
-  }
-
-  /**
    * evaluate 1 actions possibly having error effects
    *
    * Execute a second action whether the first is successful or not
    */
   def andFinally[R <: Effects, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] =
-    action.runM(new Runner[ErrorOrOk, R, A] {
+    runM(action, new Runner[ErrorOrOk, R, A] {
       def onPure(a: A): Eff[R, A] = last.as(a)
 
       def onEffect[X](mx: ErrorOrOk[X], cx: Arrs[R, X, A]): Eff[R, A] =
@@ -104,7 +92,7 @@ trait ErrorEffect[F] { outer =>
    * Execute a second action if the first one is not successful, based on the error
    */
   def whenFailed[R <: Effects, A](action: Eff[R, A], onError: Error => Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
-    action.runM(new Runner[ErrorOrOk, R, A] {
+    runM(action, new Runner[ErrorOrOk, R, A] {
       def onPure(a: A) = EffMonad[R].point(a)
       def onEffect[X](mx: ErrorOrOk[X], cx: Arrs[R, X, A]): Eff[R, A] =
         try mx.fold(e => onError(e), x => whenFailed(cx(x.value), onError))
@@ -117,34 +105,6 @@ trait ErrorEffect[F] { outer =>
  * Simple instantiation of the ErrorEffect trait with String as a Failure type
  */
 object ErrorEffect extends ErrorEffect[String] {
-  implicit class ErrorOrOkOps[A](c: Error \/ A) {
-    def toErrorSimpleMessage: Option[String] =
-      c match {
-        case -\/(e) => Some(e.simpleMessage)
-        case _      => None
-      }
-
-    def toErrorFullMessage: Option[String] =
-      c match {
-        case -\/(e) => Some(e.fullMessage)
-        case _      => None
-      }
-  }
-
-  implicit class ErrorOps[A](e: Error) {
-    def simpleMessage: String =
-      e match {
-        case -\/(t) => render(t)
-        case \/-(m) => m
-      }
-
-    def fullMessage: String =
-      e match {
-        case -\/(t) => renderWithStack(t)
-        case \/-(m) => m
-      }
-  }
-
 
   def render(t: Throwable): String =
     s"Error[${t.getClass.getName}]" + (Option(t.getMessage) match {
