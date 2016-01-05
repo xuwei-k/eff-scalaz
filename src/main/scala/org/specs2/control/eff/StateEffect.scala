@@ -2,30 +2,42 @@ package org.specs2.control.eff
 
 import Eff._
 import Effects._
-import scalaz._, Scalaz._
 import Interpret._
+import scalaz.{State => _, _}, Scalaz._
 
 /**
  * Effect for passing state along computations
  *
  * Several state effects can be used in the same stack if they are tagged
  *
- * Internally backed up by scalaz.State
  *
  */
 object StateEffect {
 
+  sealed class State[S, A] {
+    def apply(s: S): (S, A)
+  }
+  case class Put[S](s: S) extends State[S, Unit] {
+    def apply(s: S) = (s, ())
+  }
+  case class Get[S]() extends State[S, S]  {
+    def apply(s: S) = (s, s)
+  }
+  case class Gets[S, A](f: S => A) extends State[S, A] {
+    def apply(s: S) = (s, f(s))
+  }
+
   /** store a new state value */
   def put[R, S](s: S)(implicit member: Member[State[S, ?], R]): Eff[R, Unit] =
-    send[State[S, ?], R, Unit](Scalaz.put(s))
+    send[State[S, ?], R, Unit](Put(s))
 
   /** get the current state value */
   def get[R, S](implicit member: Member[State[S, ?], R]): Eff[R, S] =
-    send[State[S, ?], R, S](Scalaz.get)
+    send[State[S, ?], R, S](Get())
 
   /** get the current state value and map it with a function f */
   def gets[R, S, T](f: S => T)(implicit member: Member[State[S, ?], R]): Eff[R, T] =
-    send[State[S, ?], R, T](Scalaz.gets(f))
+    send[State[S, ?], R, T](Gets(f))
 
   /** modify the current state value */
   def modify[R, S](f: S => S)(implicit member: Member[State[S, ?], R]): Eff[R, Unit] =
@@ -50,6 +62,33 @@ object StateEffect {
   /** run a state effect, with an initial value */
   def runStateZero[R <: Effects, S : Monoid, A](w: Eff[State[S, ?] |: R, A]): Eff[R, (A, S)] =
     runState(Monoid[S].zero)(w)
+
+  /** optimize state effects when there are consecutive puts or gets */
+  def optimizeState[R <: Effects, S1, A](w: Eff[State[S1, ?] |: R, A]): Eff[State[S1, ?] |: R, A] = {
+    def loop(e: Eff[State[S1, ?] |: R, A], last: Option[State[S1, _]]): Eff[State[S1, ?] |: R, A] = {
+      w match {
+        case Pure(_) => e
+        case Impure(union, continuation) =>
+          decompose(union) match {
+            case -\/(_) => e
+
+            case \/-(ms) =>
+              (ms, last) match {
+                case (Put(_), Some(Put(_))) =>
+
+                case (Put(s), _) =>
+                  loop(continuation(s), Some(ms))
+
+                case (Get(), _) =>
+                  loop(continuation(s), Some(ms))
+              }
+          }
+      }
+    }
+
+    loop(w, last = None)
+  }
+
 
   /** run a state effect, with an initial value */
   def runState[R <: Effects, S1, A](initial: S1)(w: Eff[State[S1, ?] |: R, A]): Eff[R, (A, S1)] = {
