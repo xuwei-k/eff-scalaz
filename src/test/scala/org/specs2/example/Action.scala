@@ -9,6 +9,7 @@ import EvalEffect._
 import ErrorEffect._
 import MemberNat._
 import Member.{<=}
+import org.specs2.control.eff.syntax.interpret._
 
 /**
  * This is an example of a stack of effect with:
@@ -59,7 +60,34 @@ object Action {
     fail(failureMessage)
 
   def runAction[A](action: Eff[ActionStack, A], printer: String => Unit = s => ()): (Error \/ A, List[String]) =
-    run(runEval(runWarnings(runConsoleToPrinter(printer)(runError(action)))))
+    action.run // run(runEval(runWarnings(runConsoleToPrinter(printer)(runError(action)))))
 
+  implicit class ActionRun[A](action: Eff[ActionStack, A]) {
+    def run =
+      action.interpret(actionInterpreter)
+  }
 
+  val actionInterpreter: InterpreterStack[ActionStack, ({ type l[A]=(Error \/ A, List[String])})#l] =
+    //ErrorOrOkInterpreter :: ConsoleInterpreter() :: WarningsInterpreter :: EvalInterpreter :: NoEffectInterpreter
+    (EvalInterpreter :: NoEffectInterpreter).::[Warnings, (?, List[String])](WarningsInterpreter).::(ConsoleInterpreter()).::[ErrorOrOk, Error \/ ?](ErrorOrOkInterpreter)
+
+  def ErrorOrOkInterpreter = new Interpreter[ErrorOrOk, Error \/ ?] {
+    def interpret[E <: Effects, A](e: Eff[ErrorOrOk |: E, A]) =
+      ErrorEffect.runError(e)
+  }
+
+  def ConsoleInterpreter(printer: String => Unit = s => ()) = new Interpreter[Console, Id] {
+    def interpret[E <: Effects, A](e: Eff[Console |: E, A]) =
+      ConsoleEffect.runConsoleToPrinter(printer)(e)
+  }
+
+  def WarningsInterpreter = new Interpreter[Warnings, (?, List[String])] {
+    def interpret[E <: Effects, A](e: Eff[Warnings |: E, A]) =
+      WarningsEffect.runWarnings(e)
+  }
+
+  def EvalInterpreter = new Interpreter[Eval, Id] {
+    def interpret[E <: Effects, A](e: Eff[Eval |: E, A]) =
+      EvalEffect.runEval(e)
+  }
 }
