@@ -4,7 +4,7 @@ import Keys._
 object depend {
 
   val scalazVersion   = "7.2.0"
-  val specs2Version   = "3.7.1"
+  val specs2Version   = "3.7"
   val disorderVersion = "0.0.1-20150618032436-9c1f81e"
 
   val scalaz = Seq(
