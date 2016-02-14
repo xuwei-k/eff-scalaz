@@ -1,13 +1,11 @@
-package org.specs2.example
+package org.specs2.eff
 
 import org.specs2._
-import org.specs2.control.Eff._
-import org.specs2.control.Effects._
-import org.specs2.control.Member.<=
-import org.specs2.control._
-import scalaz._, Scalaz._
-
+import Eff._
+import Effects._
 import ListEffect._
+
+import scalaz._, Scalaz._
 
 class ListSpec extends Specification { def is = s2"""
 
@@ -19,9 +17,6 @@ class ListSpec extends Specification { def is = s2"""
 
   type L = List |: NoEffect
 
-  implicit def ListMember: List <= L =
-    Member.MemberNatIsMember
-
   def listEffect = {
     val action: Eff[L, Int] = for {
       a <- singleton(2)
@@ -30,7 +25,7 @@ class ListSpec extends Specification { def is = s2"""
       d <- fromList((1 to c).toList)
     } yield b + d
 
-    (action |> runList |> run) ==== List(2, 3, 4, 3, 4, 5)
+    run(runList(action)) ==== List(2, 3, 4, 3, 4, 5)
   }
 
   def stackSafe = {
@@ -39,7 +34,8 @@ class ListSpec extends Specification { def is = s2"""
     val action: Eff[L, List[Int]] =
       list.traverseU(i => singleton[L, Int](i))
 
-    (action |> runList |> run).flatten must_== list
+    run(runList(action)).flatten must_== list
   }
 
 }
+

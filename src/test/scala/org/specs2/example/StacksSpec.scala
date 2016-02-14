@@ -1,12 +1,14 @@
 package org.specs2.example
 
 import org.specs2._
-import control._
+import eff._
+import syntax.eff._
 import Effects._
 import EvalEffect._
-import Member.{<=}
 import WriterEffect._
+import ReaderEffect._
 import Eff._
+import Member.<=
 import scalaz._, Scalaz._
 
 class StacksSpec extends Specification { def is = s2"""
@@ -48,7 +50,7 @@ class StacksSpec extends Specification { def is = s2"""
       _ <- writeFile[HadoopS3]("key", s)
     } yield ()
 
-    (action |> runS3Reader(S3Conf("bucket")) |> runHadoopReader(HadoopConf(10)) |> runWriter |> runEval |> run) ====
+    run(runEval(runWriter(runHadoopReader(HadoopConf(10))(runS3Reader(S3Conf("bucket"))(action))))) ====
       (((), List("Reading from /tmp/data", "Writing to bucket bucket: 10")))
   }
 
@@ -63,7 +65,7 @@ class StacksSpec extends Specification { def is = s2"""
       _ <- writeFile("key", s)  .into[HadoopS3]
     } yield ()
 
-    (action |> runS3Reader(S3Conf("bucket")) |> runHadoopReader(HadoopConf(10)) |> runWriter |> runEval |> run) ====
+    run(runEval(runWriter(runHadoopReader(HadoopConf(10))(runS3Reader(S3Conf("bucket"))(action))))) ====
       (((), List("Reading from /tmp/data", "Writing to bucket bucket: 10")))
   }
 
@@ -79,19 +81,13 @@ class StacksSpec extends Specification { def is = s2"""
     type WriterString[A] = Writer[String, A]
     type Hadoop = HadoopReader |: WriterString |: Eval |: NoEffect
 
-    implicit def HadoopReaderMember: Member[HadoopReader, Hadoop] =
-      Member.MemberNatIsMember
-
-    implicit def WriterStringMember: Member[WriterString, Hadoop] =
-      Member.MemberNatIsMember
-
     def askHadoopConf[R](implicit m: HadoopReader <= R): Eff[R, HadoopConf] =
       ReaderEffect.ask(Member.untagMember[Reader[HadoopConf, ?], R, HadoopTag](m))
 
     def readFile[R](path: String)(implicit r: HadoopReader <= R, w: WriterString <= R): Eff[R, String] =
       for {
         c <- askHadoopConf(r)
-        _ <- tell("Reading from "+path)(w)
+        _ <- tell[R, String]("Reading from "+path)(w)
       } yield c.mappers.toString
 
     def runHadoopReader[R <: Effects, A](conf: HadoopConf): Eff[HadoopReader |: R, A] => Eff[R, A] =
@@ -108,19 +104,13 @@ class StacksSpec extends Specification { def is = s2"""
 
     type S3 = S3Reader |: WriterString |: Eval |: NoEffect
 
-    implicit def S3ReaderMember: Member[S3Reader, S3] =
-      Member.MemberNatIsMember
-
-    implicit def WriterStringMember: Member[WriterString, S3] =
-      Member.MemberNatIsMember
-
     def askS3Conf[R](implicit m: S3Reader <= R): Eff[R, S3Conf] =
       ReaderEffect.ask(Member.untagMember[Reader[S3Conf, ?], R, S3Tag](m))
 
     def writeFile[R](key: String, content: String)(implicit r: S3Reader <= R, w: WriterString <= R): Eff[R, Unit] =
       for {
         c <- askS3Conf(r)
-        _ <- tell("Writing to bucket "+c.bucket+": "+content)(w)
+        _ <- tell[R, String]("Writing to bucket "+c.bucket+": "+content)(w)
       } yield ()
 
     def runS3Reader[R <: Effects, A](conf: S3Conf): Eff[S3Reader |: R, A] => Eff[R, A] =
@@ -135,19 +125,13 @@ class StacksSpec extends Specification { def is = s2"""
     type WriterString[A] = Writer[String, A]
     type Hadoop = HadoopReader |: WriterString |: Eval |: NoEffect
 
-    implicit def HadoopReaderMember: Member[HadoopReader, Hadoop] =
-      Member.MemberNatIsMember
-
-    implicit def WriterStringMember: Member[WriterString, Hadoop] =
-      Member.MemberNatIsMember
-
-    def askHadoopConf[R](implicit m: HadoopReader <= R): Eff[R, HadoopConf] =
-      ReaderEffect.ask(Member.untagMember[Reader[HadoopConf, ?], R, HadoopTag](m))
+    def askHadoopConf: Eff[Hadoop, HadoopConf] =
+      ReaderEffect.askTagged
 
     def readFile(path: String): Eff[Hadoop, String] =
       for {
         c <- askHadoopConf
-        _ <- tell("Reading from "+path)
+        _ <- tell[Hadoop, String]("Reading from "+path)
       } yield c.mappers.toString
 
     def runHadoopReader[R <: Effects, A](conf: HadoopConf): Eff[HadoopReader |: R, A] => Eff[R, A] =
@@ -164,19 +148,13 @@ class StacksSpec extends Specification { def is = s2"""
 
     type S3 = S3Reader |: WriterString |: Eval |: NoEffect
 
-    implicit def S3ReaderMember: Member[S3Reader, S3] =
-      Member.MemberNatIsMember
-
-    implicit def WriterStringMember: Member[WriterString, S3] =
-      Member.MemberNatIsMember
-
-    def askS3Conf[R](implicit m: S3Reader <= R): Eff[R, S3Conf] =
-      ReaderEffect.ask(Member.untagMember[Reader[S3Conf, ?], R, S3Tag](m))
+    def askS3Conf: Eff[S3, S3Conf] =
+      ReaderEffect.askTagged
 
     def writeFile(key: String, content: String): Eff[S3, Unit] =
       for {
         c <- askS3Conf
-        _ <- tell("Writing to bucket "+c.bucket+": "+content)
+        _ <- tell[S3, String]("Writing to bucket "+c.bucket+": "+content)
       } yield ()
 
     def runS3Reader[R <: Effects, A](conf: S3Conf): Eff[S3Reader |: R, A] => Eff[R, A] =

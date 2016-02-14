@@ -1,10 +1,14 @@
-package org.specs2
-package control
+package org.specs2.eff
 
 import Eff._
 import Effects._
+import org.specs2.{ScalaCheck, Specification}
 import StateEffect._
-import scalaz._, Scalaz.{get =>_, put =>_, modify => _, _}
+import scalaz._
+import scalaz.std.anyVal.intInstance
+import scalaz.std.list.listInstance
+import scalaz.syntax.monad._
+import scalaz.syntax.traverse.ToTraverseOps
 
 class StateEffectSpec extends Specification with ScalaCheck { def is = s2"""
 
@@ -18,11 +22,11 @@ class StateEffectSpec extends Specification with ScalaCheck { def is = s2"""
   def putGetState = {
     val action: Eff[E, String] = for {
       a <- get[E, Int]
-      h <- EffMonad[E].point("hello")
-      _ <- put[E, Int](a + 5)
-      b <- get
+      h <- EffMonad[E].pure("hello")
+      _ <- put(a + 5)
+      b <- get[E, Int]
       _ <- put(b + 10)
-      w <- EffMonad[E].point("world")
+      w <- EffMonad[E].pure("world")
     } yield h+" "+w
 
     run(runState(5)(action)) ==== (("hello world", 20))
@@ -32,7 +36,7 @@ class StateEffectSpec extends Specification with ScalaCheck { def is = s2"""
     val action: Eff[E, String] = for {
        a <- get[E, Int]
        _ <- put(a + 1)
-       _ <- modify[E, Int](_ + 10)
+       _ <- modify((_:Int) + 10)
     } yield a.toString
 
     run(execZero(action)) ==== 11
@@ -46,8 +50,7 @@ class StateEffectSpec extends Specification with ScalaCheck { def is = s2"""
   }
 
   type StateInt[A] = State[Int, A]
+
   type E = StateInt |: NoEffect
-  implicit def StateIntMember: Member[StateInt, E] =
-    Member.MemberNatIsMember
 
 }

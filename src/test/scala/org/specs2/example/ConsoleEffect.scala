@@ -1,7 +1,6 @@
 package org.specs2.example
 
-import org.specs2.control.{Effects, Eff, Member, WriterEffect, Interpret}
-import Effects._
+import org.specs2.eff._
 import Eff._
 import Interpret._
 import scalaz._, Scalaz._
@@ -14,29 +13,29 @@ object ConsoleEffect {
 
   def log[R](message: String, doIt: Boolean = true)(implicit m: Member[Console, R]): Eff[R, Unit] =
     if (doIt) WriterEffect.tell(message)(Member.untagMember[Writer[String, ?], R, ConsoleTag](m))
-    else      EffMonad.point(())
+    else      EffMonad.pure(())
 
   def logThrowable[R](t: Throwable, doIt: Boolean = true)(implicit m: Member[Console, R]): Eff[R, Unit] =
     if (doIt) logThrowable(t)
-    else      EffMonad.point(())
+    else      EffMonad.pure(())
 
   def logThrowable[R](t: Throwable)(implicit m: Member[Console, R]): Eff[R, Unit] =
     log(t.getMessage, doIt = true)(m) >>
     log(t.getStackTrace.mkString("\n"), doIt = true) >>
       (if (t.getCause != null) logThrowable(t.getCause)
-       else                    EffMonad.point(()))
+       else                    EffMonad.pure(()))
 
 
   /**
    * This interpreter prints messages to the console
    */
-  def runConsole[R <: Effects, A](w: Eff[Console |: R, A]): Eff[R, A] =
+  def runConsole[R <: Effects, U <: Effects, A](w: Eff[R, A])(implicit m : Member.Aux[Console, R, U]): Eff[U, A] =
     runConsoleToPrinter(m => println(m))(w)
 
   /**
    * This interpreter prints messages to a printing function
    */
-  def runConsoleToPrinter[R <: Effects, A](printer: String => Unit): Eff[Console |: R, A] => Eff[R, A] = {
+  def runConsoleToPrinter[R <: Effects, U <: Effects, A](printer: String => Unit)(w: Eff[R, A])(implicit m : Member.Aux[Console, R, U]) = {
     val recurse = new StateRecurse[Console, A, A] {
       type S = Unit
       val init = ()
@@ -50,7 +49,7 @@ object ConsoleEffect {
         a
     }
 
-    interpretState1((a: A) => a)(recurse)
+    interpretState1((a: A) => a)(recurse)(w)
   }
 
 }

@@ -1,13 +1,13 @@
 package org.specs2.example
 
 import org.specs2.Specification
+import org.specs2.eff._
 import scalaz._, Scalaz._
-import org.specs2.control._
 import ReaderEffect._
 import WriterEffect._
 import EvalEffect._
 import Effects._
-import Member._
+import Member.<=
 import Eff._
 
 class ReadmeSpec extends Specification { def is = s2"""
@@ -20,23 +20,9 @@ class ReadmeSpec extends Specification { def is = s2"""
   def firstExample = {
 
     object StackEffects {
+      type ReaderInt[A] = Reader[Int, A]
+      type WriterString[A] = Writer[String, A]
       type Stack = ReaderInt |: WriterString |: Eval |: NoEffect
-
-      /**
-       * Those declarations are necessary to guide implicit resolution
-       * but they only need to be done once per stack
-       */
-      type ReaderInt[X] = Reader[Int, X]
-      type WriterString[X] = Writer[String, X]
-
-      implicit def ReaderMember: Member[ReaderInt, Stack] =
-        Member.MemberNatIsMember
-
-      implicit def WriterMember: Member[WriterString, Stack] =
-        Member.MemberNatIsMember
-
-      implicit def EvalMember: Member[Eval, Stack] =
-        Member.MemberNatIsMember
     }
 
     import StackEffects._
@@ -50,7 +36,7 @@ class ReadmeSpec extends Specification { def is = s2"""
       _ <- tell[Stack, String]("START: the start value is "+init)
 
       // compute the nth power of 2
-      a <- delay(powerOfTwo(init))
+      a <- delay[Stack, Int](powerOfTwo(init))
 
       // log an end message
       _ <- tell[Stack, String]("END")
@@ -58,7 +44,7 @@ class ReadmeSpec extends Specification { def is = s2"""
 
     // run the action with all the interpreters
     val result: (Int, List[String]) =
-      action |> runReader(5) |> runWriter |> runEval |> run
+      run(runEval(runWriter(runReader(5)(action))))
 
     result === ((32, List("START: the start value is 5", "END")))
   }
@@ -87,17 +73,16 @@ class ReadmeSpec extends Specification { def is = s2"""
     import FutureEffect._
 
     type F = Fut |: NoEffect
-    implicit def FutMember: Fut <= F =
-      Member.MemberNatIsMember
 
     val action: Eff[F, Int] = for {
-      a <- future(1)
-      b <- future(2)
+      a <- future[F, Int](1)
+      b <- future[F, Int](2)
     } yield a + b
 
-    (action |> runFuture(3.seconds) |> run) ==== 3
+    run(runFuture(3.seconds)(action)) ==== 3
   }
 
   def powerOfTwo(n: Int): Int =
     math.pow(2, n.toDouble).toInt
 }
+

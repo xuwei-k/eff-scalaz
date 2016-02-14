@@ -1,15 +1,17 @@
 package org.specs2
 package example
 
-import Action._
-import control.{ErrorEffect, EvalEffect, Member, Eff}
+import ActionCreation._
+import org.specs2.eff._
+import eff.syntax.error._
 import EvalEffect._
 import WarningsEffect._
 import ConsoleEffect._
 import ErrorEffect._
 import Member.{<=}
+import Eff._
 import org.specs2.matcher.DisjunctionMatchers
-import scalaz._, Scalaz._, effect.IO
+import scalaz._, Scalaz._
 
 class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers { def is = s2"""
 
@@ -24,10 +26,10 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
 """
 
   def computeValues =
-    runWith(2, 3)._1 must be_\/-(5)
+    runWith(2, 3)._1.toEither must beRight(5)
 
   def stop =
-    runWith(20, 30)._1 ==== -\/(\/-("too big"))
+    runWith(20, 30)._1.toEither ==== util.Left(\/-("too big"))
 
   def logMessages = {
     val messages = new scala.collection.mutable.ListBuffer[String]
@@ -41,18 +43,18 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
 
   def warningAndFail = {
     val action = for {
-       i <- EvalEffect.delay(1)
-       _ <- Action.warnAndFail("hmm", "let's stop")
+       i <- EvalEffect.delay[ActionStack, Int](1)
+       _ <- Action.warnAndFail[ActionStack, String]("hmm", "let's stop")
       } yield i
 
-    runAction(action)._1 must be_-\/
+    runAction(action)._1.toEither must beLeft
   }
 
   def orElseWarn = {
     val action =
-      ErrorEffect.fail("failed").orElse(warn("that didn't work"))
+      ErrorEffect.fail[ActionStack, Unit]("failed").orElse(warn[ActionStack]("that didn't work"))
 
-    runAction(action)._1 must be_\/-
+    runAction(action)._1.toEither must beRight
   }
 
   /**
@@ -67,16 +69,19 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
     runAction(unboundActions[ActionStack](i, j), printer)
 
   /**
-   * ActionStack actions: no annotation is necessary here
+   * ActionStack actions
    */
-  def actions(i: Int, j: Int): Eff[ActionStack, Int] = for {
-    x <- evalIO(IO(i))
-    _ <- log("got the value "+x)
-    y <- evalIO(IO(j))
-    _ <- log("got the value "+y)
-    s <- if (x + y > 10) fail("too big") else ErrorEffect.ok(x + y)
-    _ <- if (s >= 5) warn("the sum is big: "+s) else Eff.unit[ActionStack]
-  } yield s
+  def actions(i: Int, j: Int): Eff[ActionStack, Int] = {
+    import ActionImplicits._
+    for {
+      x <- delay(i)
+      _ <- log("got the value "+x)
+      y <- delay(j)
+      _ <- log("got the value "+y)
+      s <- if (x + y > 10) fail("too big") else ErrorEffect.ok(x + y)
+      _ <- if (s >= 5) warn("the sum is big: "+s) else Eff.unit[ActionStack]
+    } yield s
+  }
 
   /**
    * "open" effects version of the same actions
@@ -88,12 +93,12 @@ class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers 
              m3: Warnings <= R,
              m4: ErrorOrOk <= R
   ): Eff[R, Int] = for {
-    x <- evalIO[R, Int](IO(i))
-    _ <- log[R]("got the value "+x)
-    y <- evalIO[R, Int](IO(j))
-    _ <- log[R]("got the value "+y)
-    s <- if (x + y > 10) fail[R, Int]("too big") else ErrorEffect.ok[R, Int](x + y)
-    _ <- if (s >= 5) warn[R]("the sum is big: "+s) else Eff.unit[R]
+    x <- delay(i)
+    _ <- log("got the value "+x)
+    y <- delay(j)
+    _ <- log("got the value "+y)
+    s <- if (x + y > 10) fail("too big") else ErrorEffect.ok(x + y)
+    _ <- if (s >= 5) warn("the sum is big: "+s) else Eff.unit[R]
   } yield s
 
 }

@@ -1,9 +1,11 @@
-package org.specs2.control
+package org.specs2.eff
 
 import scala.annotation.tailrec
 import scalaz._
+import Union._
 import Effects._
-import Union.decompose
+import Member.<=
+import Eff._
 
 /**
  * Effects of type R, returning a value of type A
@@ -48,7 +50,7 @@ object Eff {
    * Monad implementation for the Eff[R, ?] type
    */
   implicit def EffMonad[R]: Monad[Eff[R, ?]] = new Monad[Eff[R, ?]] {
-    def point[A](a: => A): Eff[R, A] =
+    def point[A](a: =>A): Eff[R, A] =
       Pure(a)
 
     def bind[A, B](fa: Eff[R, A])(f: A => Eff[R, B]): Eff[R, B] =
@@ -63,11 +65,15 @@ object Eff {
 
   /** create an Eff[R, A] value from an effectful value of type T[V] provided that T is one of the effects of R */
   def send[T[_], R, V](tv: T[V])(implicit member: Member[T, R]): Eff[R, V] =
-    impure(member.inject(tv), Arrs.singleton((v: V) => EffMonad[R].point(v)))
+    impure(member.inject(tv), Arrs.unit)
+
+  /** use the internal effect as one of the stack effects */
+  def collapse[R, M[_], A](r: Eff[R, M[A]])(implicit m: Member[M, R]): Eff[R, A] =
+    EffMonad[R].bind(r)(mx => send(mx)(m))
 
   /** create an Eff value for () */
   def unit[R]: Eff[R, Unit] =
-    EffMonad.point(())
+    EffMonad.pure(())
 
   /** create a pure value */
   def pure[R, A](a: A): Eff[R, A] =
@@ -76,6 +82,33 @@ object Eff {
   /** create a impure value from an union of effects and a continuation */
   def impure[R, X, A](union: Union[R, X], continuation: Arrs[R, X, A]): Eff[R, A] =
     Impure[R, X, A](union, continuation)
+
+  /** run a specific effect in a stack */
+  trait Runner[M[_], R, A] {
+    def onPure(a: A): Eff[R, A]
+    def onEffect[X](mx: M[X], cx: Arrs[R, X, A]): Eff[R, A]
+  }
+
+  /** transform a specific effect in a stack */
+  def transform[R, M[_], N[_], A](e: Eff[R, A], t: NaturalTransformation[M, N])(implicit m: M <= R, n: N <= R): Eff[R, A] =
+    runM(e, new Runner[M, R, A] {
+      def onPure(a: A): Eff[R, A] =
+        Pure(a)
+
+      def onEffect[X](mx: M[X], cx: Arrs[R, X, A]) =
+        Impure(n.inject(t(mx)), cx.transform(t)(m, n))
+    })
+
+  /** run a specific effect in a stack */
+  def runM[R, M[_], A](e: Eff[R, A], runner: Runner[M, R, A])(implicit m: M <= R): Eff[R, A] =
+    e match {
+      case Pure(a) => runner.onPure(a)
+      case Impure(u, c) =>
+        m.project(u) match {
+          case Some(mx) => runner.onEffect(mx, c)
+          case None     => Impure(u, c)
+        }
+    }
 
   /**
    * base runner for an Eff value having no effects at all
@@ -90,40 +123,34 @@ object Eff {
     }
 
   /**
-   * Operations of Eff[R, A] values
-   */
-
-  implicit class EffOps[R <: Effects, A](e: Eff[R, A]) {
-    def into[U](implicit f: IntoPoly[R, U, A]): Eff[U, A] =
-      effInto(e)(f)
-  }
-
-  /**
    * An Eff[R, A] value can be transformed into an Eff[U, A]
    * value provided that all the effects in R are also in U
    */
   def effInto[R <: Effects, U, A](e: Eff[R, A])(implicit f: IntoPoly[R, U, A]): Eff[U, A] =
     f(e)
+}
 
-  /**
-   * Trait for polymorphic recursion into Eff[?, A]
-   *
-   * The idea is to deal with one effect at the time:
-   *
-   *  - if the effect stack is M |: R and if U contains M
-   *    we transform each "Union[R, X]" in the Impure case into a Union for U
-   *    and we try to recurse on other effects present in R
-   *
-   *  - if the effect stack is M |: NoEffect and if U contains M we
-   *    just "inject" the M[X] effect into Eff[U, A] using the Member typeclass
-   *    if M is not present when we decompose we throw an exception. This case
-   *    should never happen because if there is no other effect in the stack
-   *    there should be at least something producing a value of type A
-   *
-   */
-  trait IntoPoly[R <: Effects, U, A] {
-    def apply(e: Eff[R, A]): Eff[U, A]
-  }
+/**
+ * Trait for polymorphic recursion into Eff[?, A]
+ *
+ * The idea is to deal with one effect at the time:
+ *
+ *  - if the effect stack is M |: R and if U contains M
+ *    we transform each "Union[R, X]" in the Impure case into a Union for U
+ *    and we try to recurse on other effects present in R
+ *
+ *  - if the effect stack is M |: NoEffect and if U contains M we
+ *    just "inject" the M[X] effect into Eff[U, A] using the Member typeclass
+ *    if M is not present when we decompose we throw an exception. This case
+ *    should never happen because if there is no other effect in the stack
+ *    there should be at least something producing a value of type A
+ *
+ */
+trait IntoPoly[R <: Effects, U, A] {
+  def apply(e: Eff[R, A]): Eff[U, A]
+}
+
+object IntoPoly extends IntoPolyLower {
 
   implicit def intoNoEff[M[_], U, A](implicit m: Member[M, M |: NoEffect], mu: Member[M, U]): IntoPoly[M |: NoEffect, U, A] =
     new IntoPoly[M |: NoEffect, U, A] {
@@ -131,7 +158,7 @@ object Eff {
 
         e match {
           case Pure(a) =>
-            EffMonad[U].point(a)
+            EffMonad[U].pure(a)
 
           case Impure(u, c) =>
             decompose(u) match {
@@ -141,14 +168,15 @@ object Eff {
         }
       }
     }
-
+}
+trait IntoPolyLower {
   implicit def intoEff[M[_], R <: Effects, U, A](implicit m: Member[M, M |: R], mu: Member[M, U], recurse: IntoPoly[R, U, A]): IntoPoly[M |: R, U, A] =
     new IntoPoly[M |: R, U, A] {
       def apply(e: Eff[M |: R, A]): Eff[U, A] = {
 
         e match {
           case Pure(a) =>
-            EffMonad[U].point(a)
+            EffMonad[U].pure(a)
 
           case Impure(u, c) =>
             decompose(u) match {
@@ -159,7 +187,6 @@ object Eff {
       }
     }
 }
-
 
 /**
  * Sequence of monadic functions from A to B: A => Eff[B]
@@ -180,6 +207,13 @@ case class Arrs[R, A, B](functions: Vector[Any => Eff[R, Any]]) {
   def append[C](f: B => Eff[R, C]): Arrs[R, A, C] =
     Arrs(functions :+ f.asInstanceOf[Any => Eff[R, Any]])
 
+  /** map the last returned effect */
+  def mapLast(f: Eff[R, B] => Eff[R, B]): Arrs[R, A, B] =
+    functions match {
+      case Vector() => this
+      case fs :+ last => Arrs(fs :+ ((x: Any) => f(last(x).asInstanceOf[Eff[R, B]]).asInstanceOf[Eff[R, Any]]))
+    }
+
   /**
    * execute this monadic function
    *
@@ -189,6 +223,9 @@ case class Arrs[R, A, B](functions: Vector[Any => Eff[R, Any]]) {
     @tailrec
     def go(fs: Vector[Any => Eff[R, Any]], v: Any): Eff[R, B] = {
       fs match {
+        case Vector() =>
+          Eff.EffMonad[R].pure(v).asInstanceOf[Eff[R, B]]
+
         case Vector(f) =>
           f(v).asInstanceOf[Eff[R, B]]
 
@@ -202,6 +239,12 @@ case class Arrs[R, A, B](functions: Vector[Any => Eff[R, Any]]) {
 
     go(functions, a)
   }
+
+  def contramap[C](f: C => A): Arrs[R, C, B] =
+    Arrs(((c: Any) => Eff.EffMonad[R].pure(f(c.asInstanceOf[C]).asInstanceOf[Any])) +: functions)
+
+  def transform[M[_], N[_]](t: NaturalTransformation[M, N])(implicit m: M <= R, n: N <= R): Arrs[R, A, B] =
+    Arrs(functions.map(f => (x: Any) => Eff.transform(f(x), t)(m, n)))
 }
 
 object Arrs {
@@ -209,4 +252,8 @@ object Arrs {
   /** create an Arrs function from a single monadic function */
   def singleton[R, A, B](f: A => Eff[R, B]): Arrs[R, A, B] =
     Arrs(Vector(f.asInstanceOf[Any => Eff[R, Any]]))
+
+  /** create an Arrs function with no effect, which is similar to using an identity a => EffMonad[R].pure(a) */
+  def unit[R, A]: Arrs[R, A, A] =
+    Arrs(Vector())
 }

@@ -1,8 +1,7 @@
 package org.specs2
 package example
 
-import org.specs2.control.Effects._
-import org.specs2.control.{Effects, Eff, Member, WriterEffect}
+import org.specs2.eff._
 import scalaz._
 
 object WarningsEffect {
@@ -18,7 +17,7 @@ object WarningsEffect {
   /**
    * This interpreter cumulates warnings
    */
-  def runWarnings[R <: Effects, A](w: Eff[Warnings |: R, A]): Eff[R, (A, List[String])] =
-    WriterEffect.runTaggedWriter[R, WarningsTag, String, A](w)
+  def runWarnings[R <: Effects, U <: Effects, A](w: Eff[R, A])(implicit m: Member.Aux[Warnings, R, U]): Eff[U, (A, List[String])] =
+    WriterEffect.runTaggedWriter[R, U, WarningsTag, String, A](w)
 
 }

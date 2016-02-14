@@ -1,15 +1,14 @@
-package org.specs2
-package control
+package org.specs2.eff
 
+import com.ambiata.disorder.PositiveIntSmall
+import org.scalacheck.Arbitrary._
+import org.scalacheck._
 import Eff._
 import Effects._
 import ReaderEffect._
 import WriterEffect._
-import com.ambiata.disorder.PositiveIntSmall
-import org.scalacheck._, Arbitrary._
+import org.specs2.{ScalaCheck, Specification}
 import scalaz._, Scalaz._
-import scalacheck.ScalazProperties._
-import Eff._
 
 class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
@@ -27,24 +26,20 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
 """
 
-  def laws = monad.laws[F]
+  def laws = pending //scalaz.laws.discipline.MonadTests[F].monad[Int, Int, Int]
 
   def readerMonadPure = prop { (initial: Int) =>
     type R[A] = Reader[Int, A]
     type S = R |: NoEffect
 
-    implicit def ReaderStackMember: Member[R, S] =
-      Member.MemberNatIsMember
-
-    run(runReader(initial)(ask[S, Int])) === initial
+    run(runReader(initial)(ask[S, Int](ReaderMemberFirst))) === initial
   }
 
   def readerMonadBind = prop { (initial: Int) =>
     type R[A] = Reader[Int, A]
     type S = R |: NoEffect
 
-    implicit def ReaderStackMember: Member[R, S] =
-      Member.MemberNatIsMember
+    import ReaderImplicits._
 
     val read: Eff[S, Int] =
       for {
@@ -59,13 +54,10 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     type W[A] = Writer[String, A]
     type S = W |: NoEffect
 
-    implicit def WriterStackMember: Member[W, S] =
-      Member.MemberNatIsMember
-
     val write: Eff[S, Unit] =
       for {
-        _ <- tell[S, String]("hello")
-        _ <- tell[S, String]("world")
+        _ <- tell("hello")
+        _ <- tell("world")
       } yield ()
 
     run(runWriter(write)) ==== (((), List("hello", "world")))
@@ -78,11 +70,8 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     type R[A] = Reader[Int, A]
     type S = W |: R |: NoEffect
 
-    implicit def ReaderStackMember: Member[R, S] =
-      Member.MemberNatIsMember
-
-    implicit def WriterStack: Member[W, S] =
-      Member.MemberNatIsMember
+    object SImplicits extends MemberImplicits with ReaderImplicits with WriterImplicits
+    import SImplicits._
 
     // create actions
     val readWrite: Eff[S, Int] =
@@ -102,8 +91,6 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
   def stacksafeWriter = {
     type WriterString[A] = Writer[String, A]
     type E = WriterString |: NoEffect
-    implicit def WriterStringMember: Member[WriterString, E] =
-      Member.MemberNatIsMember
 
     val list = (1 to 5000).toList
     val action = list.traverseU(i => WriterEffect.tell[E, String](i.toString))
@@ -114,8 +101,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
   def stacksafeReader = {
     type ReaderString[A] = Reader[String, A]
     type E = ReaderString |: NoEffect
-    implicit def ReaderStringMember: Member[ReaderString, E] =
-      Member.MemberNatIsMember
+    import ReaderImplicits._
 
     val list = (1 to 5000).toList
     val action = list.traverseU(i => ReaderEffect.ask[E, String])
@@ -129,12 +115,6 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
     type E = ReaderString |: WriterString |: NoEffect
 
-    implicit def ReaderStringMember: Member[ReaderString, E] =
-      Member.MemberNatIsMember
-
-    implicit def WriterStringMember: Member[WriterString, E] =
-      Member.MemberNatIsMember
-
     val list = (1 to 5000).toList
     val action = list.traverseU(i => ReaderEffect.ask[E, String] >>= WriterEffect.tell[E, String])
 
@@ -146,19 +126,14 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
    */
    type F[A] = Eff[NoEffect, A]
 
-   implicit def EffEqual[A]: Equal[F[A]] = new Equal[F[A]] {
-     def equal(a1: F[A], a2: F[A]): Boolean =
-       run(a1) == run(a2)
-   }
-
    implicit def ArbitraryEff: Arbitrary[F[Int]] = Arbitrary[F[Int]] {
      Gen.oneOf(
-       Gen.choose(0, 100).map(i => EffMonad[NoEffect].point(i)),
-       Gen.choose(0, 100).map(i => EffMonad[NoEffect].point(i).map(_ + 10))
+       Gen.choose(0, 100).map(i => EffMonad[NoEffect].pure(i)),
+       Gen.choose(0, 100).map(i => EffMonad[NoEffect].pure(i).map(_ + 10))
      )
    }
 
    implicit def ArbitraryEffFunction: Arbitrary[F[Int => Int]] =
-     Arbitrary(arbitrary[Int => Int].map(f => EffMonad[NoEffect].point(f)))
+     Arbitrary(arbitrary[Int => Int].map(f => EffMonad[NoEffect].pure(f)))
 
 }

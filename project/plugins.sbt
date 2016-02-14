@@ -13,3 +13,9 @@ addSbtPlugin("com.ambiata" % "promulgate" % "0.11.0-20150727222014-93879fa")
 addSbtPlugin("com.jsuereth" % "sbt-pgp" % "1.0.0")
 
 addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "0.4.0")
+
+addSbtPlugin("com.typesafe.sbt" % "sbt-site" % "0.8.2")
+
+resolvers += "jgit-repo" at "http://download.eclipse.org/jgit/maven"
+
+addSbtPlugin("com.typesafe.sbt" % "sbt-ghpages" % "0.5.4")

@@ -1,13 +1,11 @@
-package org.specs2
-package control
+package org.specs2.eff
 
-import com.ambiata.disorder._
-import Effects._
-import Eff._
+import com.ambiata.disorder.{PositiveIntSmall, PositiveLongSmall}
 import DisjunctionEffect._
 import ReaderEffect._
-import MemberNat._
-import MemberNat._
+import Eff._
+import Effects._
+import org.specs2.{ScalaCheck, Specification}
 
 import scalaz._, Scalaz._
 
@@ -24,9 +22,6 @@ class DisjunctionEffectSpec extends Specification with ScalaCheck { def is = s2"
   def disjunctionMonad = {
     type S = DisjunctionString |: NoEffect
 
-    implicit def DisjunctionStack: Member[DisjunctionString, S] =
-      Member.MemberNatIsMember
-
     val disjunction: Eff[S, Int] =
       for {
         i <- DisjunctionEffect.right[S, String, Int](1)
@@ -38,9 +33,6 @@ class DisjunctionEffectSpec extends Specification with ScalaCheck { def is = s2"
 
   def disjunctionWithKoMonad = {
     type S = DisjunctionString |: NoEffect
-
-    implicit def DisjunctionStack: Member[DisjunctionString, S] =
-      Member.MemberNatIsMember
 
     val disjunction: Eff[S, Int] =
       for {
@@ -55,19 +47,13 @@ class DisjunctionEffectSpec extends Specification with ScalaCheck { def is = s2"
 
     // define a Reader / Disjunction stack
     type ReaderLong[A] = Reader[Long, A]
-    type Stack = DisjunctionString |: ReaderLong |: NoEffect
-
-    implicit def ReaderStack: Member[ReaderLong, Stack] =
-      Member.MemberNatIsMember
-
-    implicit def DisjunctionStringStack: Member[DisjunctionString, Stack] =
-      Member.MemberNatIsMember
+    type S = DisjunctionString |: ReaderLong |: NoEffect
 
     // create actions
-    val readDisjunction: Eff[Stack, Int] =
+    val readDisjunction: Eff[S, Int] =
       for {
-        j <- DisjunctionEffect.right(someValue.value)
-        i <- ask[Stack, Long]
+        j <- DisjunctionEffect.right[S, String, Int](someValue.value)
+        i <- ask[S, Long]
       } yield i.toInt + j
 
     // run effects
@@ -75,19 +61,19 @@ class DisjunctionEffectSpec extends Specification with ScalaCheck { def is = s2"
 
     run(runReader(initial)(runDisjunction(readDisjunction))) must_==
       \/-(initial.toInt + someValue.value)
+
   }
 
-  type DisjunctionString[A] = Disjunction[String, A]
+  type DisjunctionString[A] = String \/ A
 
   def stacksafeRun = {
     type E = DisjunctionString |: NoEffect
-    implicit def DisjunctionStringMember: Member[DisjunctionString, E] =
-      Member.MemberNatIsMember
 
     val list = (1 to 5000).toList
-    val action = list.traverseU(i => DisjunctionEffect.right(i.toString))
+    val action = list.traverseU(i => DisjunctionEffect.right[E, String, String](i.toString))
 
     run(DisjunctionEffect.runDisjunction(action)) ==== \/-(list.map(_.toString))
   }
 
 }
+

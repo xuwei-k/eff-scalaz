@@ -1,14 +1,13 @@
 package org.specs2.example
 
-import org.specs2.control.{Effects, Eff, ErrorEffect, Member, MemberNat, EvalEffect, NoEffect}
+import org.specs2.eff._
 import Effects._, Eff._
 import scalaz._, Scalaz._
 import WarningsEffect._
 import ConsoleEffect._
 import EvalEffect._
 import ErrorEffect._
-import MemberNat._
-import Member.{<=}
+import Member.<=
 
 /**
  * This is an example of a stack of effect with:
@@ -21,45 +20,53 @@ import Member.{<=}
  *
  * For example
  *
- *  Error |: Console |: Warnings |: Eval |: EffectsNil
+ *  Error |: Console |: Warnings |: Eval |: NoEffect
  *
  *  will return warnings *and* failures: (String \/ A, Vector[String])
  *
  * Whereas
  *
- *  Console |: Warnings |: Error |: Eval |: EffectsNil
+ *  Console |: Warnings |: Error |: Eval |: NoEffect
  *
  *  will return not warnings if there is a failure: String \/ (A, Vector[String])
  *
  * Also note that Eval is the last effect which means that nothing get evaluated until we run the last interpreter
  *
  */
-object Action {
+object Action extends ActionCreation with ActionImplicits
 
+trait ActionTypes {
   type ActionStack = ErrorOrOk |: Console |: Warnings |: Eval |: NoEffect
+}
 
-  implicit def EvalMember: Member[Eval, ActionStack] =
-    Member.MemberNatIsMember
-
-  implicit def WarningsMember: Member[Warnings, ActionStack] =
-    Member.MemberNatIsMember
-
-  implicit def ConsoleMember: Member[Console, ActionStack] =
-    Member.MemberNatIsMember
-
-  implicit def ErrorMember: Member[ErrorOrOk, ActionStack] =
-    Member.MemberNatIsMember
-
+trait ActionCreation extends ActionTypes {
   /**
    * warn the user about something that is probably wrong on his side,
    * and then fail all other computations
    */
   def warnAndFail[R <: Effects, A](message: String, failureMessage: String)(implicit m1: Warnings <= R, m2: ErrorOrOk <= R): Eff[R, A] =
     warn(message)(m1) >>
-    fail(failureMessage)
+      fail(failureMessage)
 
   def runAction[A](action: Eff[ActionStack, A], printer: String => Unit = s => ()): (Error \/ A, List[String]) =
     run(runEval(runWarnings(runConsoleToPrinter(printer)(runError(action)))))
-
-
 }
+
+object ActionCreation extends ActionCreation
+
+trait ActionImplicits extends ActionTypes {
+
+  implicit def ErrorOrOkMember =
+    implicitly[Member.Aux[ErrorOrOk, ActionStack, Console |: Warnings |: Eval |: NoEffect]]
+
+  implicit def ConsoleMember =
+    implicitly[Member.Aux[Console, ActionStack, ErrorOrOk |: Warnings |: Eval |: NoEffect]]
+
+  implicit def WarningsMember =
+    implicitly[Member.Aux[Warnings, ActionStack, ErrorOrOk |: Console |: Eval |: NoEffect]]
+
+  implicit def EvalMember =
+    implicitly[Member.Aux[Eval, ActionStack, ErrorOrOk |: Console |: Warnings |: NoEffect]]
+}
+
+object ActionImplicits extends ActionImplicits
