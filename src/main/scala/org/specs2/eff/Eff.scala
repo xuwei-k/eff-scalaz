@@ -105,8 +105,8 @@ object Eff {
       case Pure(a) => runner.onPure(a)
       case Impure(u, c) =>
         m.project(u) match {
-          case Some(mx) => runner.onEffect(mx, c)
-          case None     => Impure(u, c)
+          case \/-(mx) => runner.onEffect(mx, c)
+          case -\/(_)  => Impure(u, c)
         }
     }
 

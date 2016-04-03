@@ -126,23 +126,14 @@ trait Interpret {
 
         case Impure(union, continuation) =>
           m.project(union) match {
-            case Some(v) =>
+            case \/-(v) =>
               loop.onEffect(v, continuation, s) match {
                 case -\/((x, s1)) => go(x, s1)
                 case \/-(b)       => b
               }
 
-            case None =>
-              union match {
-                case UnionNext(UnionNow(mx)) =>
-                  Impure[U, union.X, B](UnionNow(mx).asInstanceOf[Union[U, union.X]], Arrs.singleton(x => go(continuation(x), s)))
-
-                case UnionNext(UnionNext(n)) =>
-                  Impure[U, union.X, B](UnionNext(n).asInstanceOf[Union[U, union.X]], Arrs.singleton(x => go(continuation(x), s)))
-
-                case UnionNow(mx) =>
-                  Impure[U, union.X, B](union.asInstanceOf[Union[U, union.X]], Arrs.singleton(x => go(continuation(x), s))).asInstanceOf[Eff[U, B]]
-              }
+            case -\/(u) =>
+              Impure[U, union.X, B](u, Arrs.singleton(x => go(continuation(x), s)))
           }
       }
     }
