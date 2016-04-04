@@ -123,6 +123,25 @@ object Eff {
     }
 
   /**
+   * peel-off the only present effect
+   */
+  def detach[M[_] : Monad, A](eff: Eff[M |: NoEffect, A]): M[A] = {
+    def go(eff: Eff[M |: NoEffect, A]): M[A] = {
+      eff match {
+        case Pure(a) => Monad[M].point(a)
+
+        case Impure(UnionNow(mx), continuation) =>
+          Monad[M].bind(mx)(x => go(continuation(x)))
+
+        case _ =>
+          sys.error("impossible")
+      }
+    }
+
+    go(eff)
+  }
+
+  /**
    * An Eff[R, A] value can be transformed into an Eff[U, A]
    * value provided that all the effects in R are also in U
    */
