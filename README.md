@@ -1,6 +1,6 @@
 # eff
 
-[![Build Status](https://travis-ci.org/atnos-org/eff-scalaz.png?branch=master)](https://travis-ci.org/atnon-org/eff-scalaz)
+[![Build Status](https://travis-ci.org/atnos-org/eff-scalaz.png?branch=master)](https://travis-ci.org/atnos-org/eff-scalaz)
 
 Extensible effects are an alternative to monad transformers for computing with effects in a functional way. 
 This library is based on the "free-er" monad and an "open union" of effects described in 
