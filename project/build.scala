@@ -63,7 +63,7 @@ object build extends Build {
   lazy val Benchmark = config("bench") extend Test
 
   lazy val publicationSettings: Seq[Settings] =
-    promulgate.library("org.specs2.info.eff", "specs2") ++
+    promulgate.library("org.atnos.info.eff", "specs2") ++
     Seq(
     publishTo in Global <<= version { v: String =>
       val nexus = "https://oss.sonatype.org/"
