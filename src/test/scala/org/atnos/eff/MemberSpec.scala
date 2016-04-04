@@ -1,8 +1,8 @@
-package org.specs2.eff
+package org.atnos.eff
 
 import org.specs2.Specification
 import Effects._
-import org.specs2.eff.EvalEffect.Eval
+import EvalEffect._
 import org.specs2.matcher.DisjunctionMatchers
 
 import scalaz.{Scalaz, Need, Writer, Reader}

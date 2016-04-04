@@ -1,7 +1,6 @@
 package org.atnos
 package example
 
-import org.specs2._
 import eff._
 import syntax.eff._
 import Effects._
@@ -11,6 +10,7 @@ import ReaderEffect._
 import Eff._
 import Member.<=
 import scalaz._, Scalaz._
+import org.specs2._
 
 class StacksSpec extends Specification { def is = s2"""
 
