@@ -10,7 +10,6 @@ import WarningsEffect._
 import ConsoleEffect._
 import ErrorEffect._
 import Member.{<=}
-import Eff._
 import scalaz._, Scalaz._
 import org.specs2._
 

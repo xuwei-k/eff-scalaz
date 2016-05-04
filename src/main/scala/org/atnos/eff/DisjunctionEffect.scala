@@ -1,6 +1,5 @@
 package org.atnos.eff
 
-import scalaz.syntax.functor._
 import scalaz._
 import Eff._
 import Interpret._

@@ -44,7 +44,7 @@ The stack `Stack` above declares 3 effects:
  - an `Eval` effect to only compute values on demand (a bit like lazy values)
 
 Now we can write a program with those 3 effects, using the primitive operations provided by `ReaderEffect`, `WriterEffect` and `EvalEffect`:${snippet{
-import scalaz.syntax.all._
+
 import org.atnos.eff.all._
 import org.atnos.eff.syntax.all._
 import Stack._

@@ -2,7 +2,7 @@ package org.atnos.site
 
 import org.atnos.eff._, all._
 import scalaz._
-import scalaz.syntax.all._
+
 
 object OpenClosed extends UserGuidePage { def is = ("Open - Closed").title ^ s2"""
 
@@ -39,7 +39,7 @@ On the other hand:
 
 In that case you can specify an effect stack:${snippet{
 import org.atnos.eff._, all._
-import scalaz.syntax.all._
+
 import scalaz._
 
 type S = State[Int, ?] |: Writer[String, ?] |: NoEffect

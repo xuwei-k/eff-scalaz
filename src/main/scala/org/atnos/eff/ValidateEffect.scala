@@ -1,7 +1,7 @@
 package org.atnos.eff
 
-import scalaz._
-import scalaz.syntax.all._
+import scalaz._, Scalaz._
+
 import org.atnos.eff.all._
 import Interpret._
 

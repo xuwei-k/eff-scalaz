@@ -9,12 +9,11 @@ trait HadoopS3Snippet {
 // 8<---
 
 import org.atnos.eff._
-import Eff._
 import Effects._
 import EvalEffect._
 import WriterCreation._
 import scalaz._
-import scalaz.syntax.all._
+
 
 object HadoopStack {
   trait HadoopTag

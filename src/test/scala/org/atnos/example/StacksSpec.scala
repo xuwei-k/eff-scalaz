@@ -2,7 +2,7 @@ package org.atnos
 package example
 
 import org.specs2._
-import scalaz.syntax.all._
+
 import scalaz._
 import org.atnos.eff._
 import org.atnos.eff.all._

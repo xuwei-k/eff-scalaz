@@ -3,7 +3,7 @@ package org.atnos.site
 import scala.concurrent.duration, duration._
 import org.atnos.eff._, all._
 import snippets._, FutureEffectSnippet._, FutureEffect._
-import scalaz.syntax.all._
+
 
 object CreateEffects extends UserGuidePage { def is = "Creating effects".title ^ s2"""
 

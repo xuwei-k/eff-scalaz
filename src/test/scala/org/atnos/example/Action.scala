@@ -2,8 +2,8 @@ package org.atnos.example
 
 import org.atnos.eff._
 import Effects._, Eff._
-import scalaz.syntax.all._
-import scalaz._
+
+import scalaz._, Scalaz._
 import WarningsEffect._
 import ConsoleEffect._
 import EvalEffect._

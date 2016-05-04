@@ -4,7 +4,7 @@ import org.specs2.Specification
 import ErrorEffect.{ok => OK, ErrorOrOk}
 
 import scala.collection.mutable.ListBuffer
-import scalaz._, Scalaz._
+import scalaz._
 import org.atnos.eff.all._
 import org.atnos.eff.syntax.all._
 

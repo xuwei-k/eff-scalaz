@@ -4,7 +4,7 @@ import snippets._
 import HadoopS3Snippet._
 import HadoopStack._
 import S3Stack.{WriterString => _, _}
-import scalaz.syntax.all._
+
 import scalaz.~>
 
 object TransformStack extends UserGuidePage { def is = "Transforming stacks".title ^ s2"""
