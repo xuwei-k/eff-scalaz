@@ -1,12 +1,10 @@
 // 8<---
 package org.atnos.site.snippets
 
-import scalaz._
-import org.atnos.eff.Interpret._
-import org.atnos.eff.{Member, Effects, Eff}
-import org.atnos.eff.Eff._
-import org.atnos.eff.Member._
-import scala.concurrent.ExecutionContext.Implicits.global
+import scalaz.\/
+import scalaz.-\/
+import org.atnos.eff._, all._
+import org.atnos.eff.interpret._
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
@@ -14,6 +12,8 @@ import scala.concurrent.duration.Duration
 trait FutureEffectSnippet {
 
 // 8<---
+import scala.concurrent.ExecutionContext.Implicits.global
+
 object FutureEffect {
   type Fut[A] = Future[() => A]
 

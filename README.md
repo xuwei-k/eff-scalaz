@@ -10,6 +10,7 @@ You can learn more in the User Guide:
 
  - [your first effects](http://atnos-org.github.io/eff-scalaz/org.atnos.site.Introduction.html)
  - [included effects: `Reader`, `Writer`, `Eval`, `State`,...](http://atnos-org.github.io/eff-scalaz/org.atnos.site.OutOfTheBox.html)
+ - [how to use implicits to get type-inference right](http://atnos-org.github.io/eff-scalaz/org.atnos.site.Implicits.html)
  - [using an open or a closed union of effects](http://atnos-org.github.io/eff-scalaz/org.atnos.site.OpenClosed.html)
  - [create your own effects](http://atnos-org.github.io/eff-scalaz/org.atnos.site.CreateEffects.html)
  - [working with different effect stacks](http://atnos-org.github.io/eff-scalaz/org.atnos.site.TransformStack.html)
@@ -18,10 +19,16 @@ You can learn more in the User Guide:
 
 You add `eff-scalaz` as an sbt dependency:
 ```scala
-libraryDependencies += "org.atnos" %% "eff-scalaz" % "1.3"
+libraryDependencies += "org.atnos" %% "eff-scalaz" % "1.5"
+
+// to write types like Reader[String, ?]
+addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.7.1"),
+
+// to get types like Reader[String, ?] (with more than one type parameter) correctly inferred
+addCompilerPlugin("com.milessabin" % "si2712fix-plugin_2.11.8" % "1.1.0")
 ```
 
-or download it from [here](https://oss.sonatype.org/content/repositories/releases/org/atnos/eff-scalaz_2.11/1.3/eff-scalaz_2.11-1.3.jar).
+or download it from [here](https://oss.sonatype.org/content/repositories/releases/org/atnos/eff-scalaz_2.11/1.5/eff-scalaz_2.11-1.5.jar).
  
 # Contributing
  

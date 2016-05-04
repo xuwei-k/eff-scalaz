@@ -2,18 +2,19 @@ package org.atnos
 package example
 
 import ActionCreation._
-import org.atnos.eff._
-import eff.syntax.error._
+import org.atnos._
+import eff._
+import syntax.error._
 import EvalEffect._
 import WarningsEffect._
 import ConsoleEffect._
 import ErrorEffect._
 import Member.{<=}
 import Eff._
-import org.specs2._, matcher._
 import scalaz._, Scalaz._
+import org.specs2._
 
-class ActionSpec extends Specification with ScalaCheck with DisjunctionMatchers { def is = s2"""
+class ActionSpec extends Specification with ScalaCheck { def is = s2"""
 
  The action stack can be used to
    compute values                      $computeValues

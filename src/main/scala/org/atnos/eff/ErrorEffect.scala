@@ -1,16 +1,16 @@
 package org.atnos.eff
 
 import scala.util.control.NonFatal
-import scalaz._, Scalaz._
+import scalaz._
+import scalaz.syntax.monad._
 import Eff._
-import Effects.|:
-import Member.<=
 import Interpret._
+import org.atnos.eff.EvalEffect.Eval
 
 /**
  * Effect for computation which can fail and return a Throwable, or just stop with a failure
  *
- * This effect is a mix of Eval and Disjunction in the sense that every computation passed to this effect (with the ok
+ * This effect is a mix of Eval and \/ in the sense that every computation passed to this effect (with the ok
  * method) is considered "impure" or "faulty" by default.
  *
  * The type F is used to represent the failure type.
@@ -29,13 +29,17 @@ trait ErrorTypes[F] {
    * base type for this effect: either an error or a computation to evaluate
    * scala.Name represents "by-name" value: values not yet evaluated
    */
-  type ErrorOrOk[A] = Error \/ scalaz.Need[A]
+  type ErrorOrOk[A] = Error \/ Need[A]
 }
 
 trait ErrorCreation[F] extends ErrorTypes[F] {
   /** create an Eff value from a computation */
   def ok[R, A](a: => A)(implicit m: ErrorOrOk <= R): Eff[R, A] =
     send[ErrorOrOk, R, A](\/-(Need(a)))
+
+  /** create an Eff value from a computation */
+  def eval[R, A](a: Eval[A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
+    send[ErrorOrOk, R, A](\/-(a))
 
   /** create an Eff value from an error */
   def error[R, A](error: Error)(implicit m: ErrorOrOk <= R): Eff[R, A] =
@@ -62,11 +66,11 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] { outer =>
       def apply[X](m: ErrorOrOk[X]) =
         m match {
           case -\/(e) =>
-            \/-(EffMonad[U].pure(-\/(e)))
+            \/-(EffMonad[U].point(-\/(e)))
 
           case \/-(a) =>
             try -\/(a.value)
-            catch { case NonFatal(t) => \/-(EffMonad[U].pure(-\/(-\/(t)))) }
+            catch { case NonFatal(t) => \/-(EffMonad[U].point(-\/(-\/(t)))) }
         }
     }
 
@@ -74,18 +78,22 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] { outer =>
   }
 
   /**
-   * evaluate 1 actions possibly having error effects
+   * evaluate 1 action possibly having error effects
    *
    * Execute a second action whether the first is successful or not
    */
-  def andFinally[R <: Effects, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] =
-    runM(action, new Runner[ErrorOrOk, R, A] {
-      def onPure(a: A): Eff[R, A] = last.as(a)
-
-      def onEffect[X](mx: ErrorOrOk[X], cx: Arrs[R, X, A]): Eff[R, A] =
-        try mx.fold(e => last.flatMap(_ => outer.error[R, A](e)), x => andFinally(cx(x.value), last))
-        catch { case NonFatal(t) => last.flatMap(_ => outer.exception[R, A](t)) }
-    })
+  def andFinally[R <: Effects, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] = {
+    val recurse = new Recurse[ErrorOrOk, R, A] {
+      def apply[X](current: ErrorOrOk[X]): X \/ Eff[R, A] =
+        current match {
+          case -\/(e) => \/-(last.flatMap(_ => outer.error[R, A](e)))
+          case \/-(x) =>
+            try -\/(x.value)
+            catch { case NonFatal(t) => \/-(last.flatMap(_ => outer.exception[R, A](t))) }
+        }
+    }
+    intercept[R, ErrorOrOk, A, A]((a: A) => last.as(a), recurse)(action)
+  }
 
   /**
    * evaluate 1 action possibly having error effects
@@ -100,14 +108,18 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] { outer =>
    *
    * Execute a second action if the first one is not successful, based on the error
    */
-  def whenFailed[R <: Effects, A](action: Eff[R, A], onError: Error => Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
-    runM(action, new Runner[ErrorOrOk, R, A] {
-      def onPure(a: A) = EffMonad[R].pure(a)
-      def onEffect[X](mx: ErrorOrOk[X], cx: Arrs[R, X, A]): Eff[R, A] =
-        try mx.fold(e => onError(e), x => whenFailed(cx(x.value), onError))
-        catch { case NonFatal(t) => onError(-\/(t)) }
-    })
-
+  def whenFailed[R <: Effects, A](action: Eff[R, A], onError: Error => Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] = {
+    val recurse = new Recurse[ErrorOrOk, R, A] {
+      def apply[X](current: ErrorOrOk[X]): X \/ Eff[R, A] =
+        current match {
+          case -\/(e) => \/-(onError(e))
+          case \/-(x) =>
+            try -\/(x.value)
+            catch { case NonFatal(t) => \/-(onError(-\/(t))) }
+        }
+    }
+    intercept1[R, ErrorOrOk, A, A]((a: A) => a)(recurse)(action)
+  }
 }
 
 /**

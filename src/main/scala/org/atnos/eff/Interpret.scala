@@ -2,6 +2,7 @@ package org.atnos.eff
 
 import scalaz._
 import Eff._
+import scalaz.NaturalTransformation
 
 /**
  * Support methods to create an interpreter (or "effect handlers") for a given Eff[M |: R, A].
@@ -58,7 +59,7 @@ trait Interpret {
    * simpler version of interpret where the pure value is just mapped to another type
    */
   def interpret1[R <: Effects, U <: Effects, M[_], A, B](pure: A => B)(recurse: Recurse[M, U, B])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] =
-    interpret[R, U, M, A, B]((a: A) => EffMonad[U].pure(pure(a)), recurse)(effects)
+    interpret[R, U, M, A, B]((a: A) => EffMonad[U].point(pure(a)), recurse)(effects)
 
   /**
    * Helper trait for computations
@@ -86,7 +87,7 @@ trait Interpret {
       val init: S = recurse.init
 
       def onPure(a: A, s: S): (Eff[R, A], S) \/ Eff[U, B] =
-        \/-(EffMonad[U].pure(recurse.finalize(a, s)))
+        \/-(EffMonad[U].point(recurse.finalize(a, s)))
 
       def onEffect[X](mx: M[X], continuation: Arrs[R, X, A], s: S): (Eff[R, A], S) \/ Eff[U, B] =
         -\/ { recurse(mx, s) match { case (a, b) => (continuation(a), b)} }
@@ -98,7 +99,7 @@ trait Interpret {
    * simpler version of interpret1 where the pure value is just mapped to another type
    */
   def interpretState1[R <: Effects, U <: Effects, M[_], A, B](pure: A => B)(recurse: StateRecurse[M, A, B])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] =
-    interpretState((a: A) => EffMonad[U].pure(pure(a)), recurse)(effects)
+    interpretState((a: A) => EffMonad[U].point(pure(a)), recurse)(effects)
 
   /**
    * Generalisation of Recurse and StateRecurse
@@ -121,7 +122,7 @@ trait Interpret {
         case Pure(a) =>
           loop.onPure(a, s) match {
             case -\/((a1, s1)) => go(a1, s1)
-            case \/-(b)  => b
+            case \/-(b) => b
           }
 
         case Impure(union, continuation) =>
@@ -129,7 +130,7 @@ trait Interpret {
             case \/-(v) =>
               loop.onEffect(v, continuation, s) match {
                 case -\/((x, s1)) => go(x, s1)
-                case \/-(b)       => b
+                case \/-(b)      => b
               }
 
             case -\/(u) =>
@@ -142,8 +143,88 @@ trait Interpret {
   }
 
   def interpretLoop1[R <: Effects, U <: Effects, M[_], A, B, S](pure: A => B)(loop: Loop[M, R, A, Eff[U, B]])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] =
-    interpretLoop[R, U, M, A, B, S]((a: A) => EffMonad[U].pure(pure(a)), loop)(effects)
+    interpretLoop[R, U, M, A, B, S]((a: A) => EffMonad[U].point(pure(a)), loop)(effects)
 
+  /**
+   * INTERPRET IN THE SAME STACK
+   */
+  def intercept[R <: Effects, M[_], A, B](pure: A => Eff[R, B], recurse: Recurse[M, R, B])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] = {
+    val loop = new Loop[M, R, A, Eff[R, B]] {
+      type S = Unit
+      val init = ()
+
+      def onPure(a: A, s: Unit): (Eff[R, A], Unit) \/ Eff[R, B] =
+        \/-(pure(a))
+
+      def onEffect[X](mx: M[X], continuation: Arrs[R, X, A], s: Unit): (Eff[R, A], Unit) \/ Eff[R, B] =
+        recurse(mx).bimap(x => (continuation(x), ()), identity _)
+    }
+    interceptLoop[R, M, A, B, Unit](pure, loop)(effects)
+  }
+
+  /**
+   * simpler version of intercept where the pure value is just mapped to another type
+   */
+  def intercept1[R <: Effects, M[_], A, B](pure: A => B)(recurse: Recurse[M, R, B])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] =
+    intercept[R, M, A, B]((a: A) => EffMonad[R].point(pure(a)), recurse)(effects)
+
+  /**
+   * intercept an effect and interpret it in the same stack.
+   * This method is stack-safe
+   */
+  def interceptLoop[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], loop: Loop[M, R, A, Eff[R, B]])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] = {
+    def go(eff: Eff[R, A], s: loop.S): Eff[R, B] = {
+      eff match {
+        case Pure(a) =>
+          loop.onPure(a, s) match {
+            case -\/((a1, s1)) => go(a1, s1)
+            case \/-(b) => b
+          }
+
+        case Impure(union, continuation) =>
+          m.project(union) match {
+            case \/-(v) =>
+              loop.onEffect(v, continuation, s) match {
+                case -\/((x, s1)) => go(x, s1)
+                case \/-(b)      => b
+              }
+
+            case -\/(u) =>
+              Impure[R, union.X, B](union, Arrs.singleton(x => go(continuation(x), s)))
+          }
+      }
+    }
+
+    go(effects, loop.init)
+  }
+
+  def interceptLoop1[R <: Effects, M[_], A, B, S](pure: A => B)(loop: Loop[M, R, A, Eff[R, B]])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] =
+    interceptLoop[R, M, A, B, S]((a: A) => EffMonad[R].point(pure(a)), loop)(effects)
+
+  /**
+   * transform an effect into another one
+   * using a natural transformation
+   */
+  def transform[SR, BR, U, TS[_], TB[_], A](r: Eff[SR, A], nat: NaturalTransformation[TS, TB])
+                                               (implicit sr: Member.Aux[TS, SR, U], br: Member.Aux[TB, BR, U]): Eff[BR, A] = {
+
+    def go(eff: Eff[SR, A]): Eff[BR, A] = {
+      eff match {
+        case Pure(a) => Pure(a)
+
+        case Impure(u, c) =>
+          sr.project(u) match {
+            case \/-(small) =>
+              Impure(br.inject(nat(small)), Arrs.singleton((x: u.X) => go(c(x))))
+
+            case -\/(u1) =>
+              Impure(br.accept(u1), Arrs.singleton((x: u.X) => go(c(x))))
+          }
+      }
+    }
+
+    go(r)
+  }
 }
 
 object Interpret extends Interpret

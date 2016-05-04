@@ -2,7 +2,6 @@ package org.atnos.eff
 
 import scalaz._
 import Effects._
-import scalaz._
 
 /**
  * Open union of effects

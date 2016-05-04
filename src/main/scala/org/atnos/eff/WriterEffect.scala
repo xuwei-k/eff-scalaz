@@ -4,8 +4,8 @@ import scala.collection.mutable._
 import scalaz._
 import scalaz.syntax.semigroup._
 import Eff._
-import Effects.|:
 import Interpret._
+import org.atnos.eff.Effects.|:
 
 /**
  * Effect for logging values alongside computations
@@ -67,7 +67,7 @@ trait WriterInterpretation {
   /**
    * run a tagged writer effect
    */
-  def runTaggedWriter[R <: Effects, U <: Effects, T, O, A](w: Eff[R, A])(implicit m: Member.Aux[({type l[X] = Writer[O, X] @@ T})#l, R, U]): Eff[U, (A, List[O])] =
+  def runWriterTagged[R <: Effects, U <: Effects, T, O, A](w: Eff[R, A])(implicit m: Member.Aux[({type l[X] = Writer[O, X] @@ T})#l, R, U]): Eff[U, (A, List[O])] =
     runTaggedWriterFold(w)(ListFold)
 
   def runTaggedWriterFold[R <: Effects, U <: Effects, T, O, A, B](w: Eff[R, A])(fold: Fold[O, B])(implicit
@@ -90,14 +90,6 @@ trait WriterInterpretation {
     interpretState1[R, U, W, A, (A, B)]((a: A) => (a, fold.finalize(fold.init)))(recurse)(w)
   }
 
-  /** support trait for folding values while possibly keeping some internal state */
-  trait Fold[A, B] {
-    type S
-    val init: S
-    def fold(a: A, s: S): S
-    def finalize(s: S): B
-  }
-
   implicit def ListFold[A]: Fold[A, List[A]] = new Fold[A, List[A]] {
     type S = ListBuffer[A]
     val init = new ListBuffer[A]
@@ -113,19 +105,17 @@ trait WriterInterpretation {
   }
 }
 
+/** support trait for folding values while possibly keeping some internal state */
+trait Fold[A, B] {
+  type S
+  val init: S
+  def fold(a: A, s: S): S
+  def finalize(s: S): B
+}
+
 object WriterInterpretation extends WriterInterpretation
 
 trait WriterImplicits extends WriterImplicits1 {
-  implicit def WriterMemberZero[A]: Member.Aux[Writer[A, ?], Writer[A, ?] |: NoEffect, NoEffect] = {
-    type T[X] = Writer[A, X]
-    Member.zero[T]
-  }
-
-  implicit def WriterMemberFirst[R <: Effects, A]: Member.Aux[Writer[A, ?], Writer[A, ?] |: R, R] = {
-    type T[X] = Writer[A, X]
-    Member.first[T, R]
-  }
-
   implicit def TaggedWriterMemberZero[Tg, A]: Member.Aux[({type l[X] = Writer[A, X] @@ Tg})#l, ({type l[X] = Writer[A, X] @@ Tg})#l |: NoEffect, NoEffect] = {
     type T[X] = Writer[A, X] @@ Tg
     Member.zero[T]
@@ -139,11 +129,6 @@ trait WriterImplicits extends WriterImplicits1 {
 }
 
 trait WriterImplicits1 {
-  implicit def WriterMemberSuccessor[O[_], R <: Effects, U <: Effects, A](implicit m: Member.Aux[Writer[A, ?], R, U]): Member.Aux[Writer[A, ?], O |: R, O |: U] = {
-    type T[X] = Writer[A, X]
-    Member.successor[T, O, R, U]
-  }
-
   implicit def TaggedWriterMemberSuccessor[O[_], R <: Effects, U <: Effects, Tg, A](implicit m: Member.Aux[({type l[X] = Writer[A, X] @@ Tg})#l, R, U]): Member.Aux[({type l[X] = Writer[A, X] @@ Tg})#l, O |: R, O |: U] = {
     type T[X] = Writer[A, X] @@ Tg
     Member.successor[T, O, R, U]

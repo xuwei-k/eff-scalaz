@@ -1,19 +1,13 @@
 package org.atnos.eff
 
-import com.ambiata.disorder.PositiveIntSmall
 import org.scalacheck.Arbitrary._
 import org.scalacheck._
-import Eff._
-import Effects._
-import ReaderEffect._
-import WriterEffect._
 import org.specs2.{ScalaCheck, Specification}
 import scalaz._, Scalaz._
-import syntax.eff._
+import org.atnos.eff.all._
+import org.atnos.eff.syntax.all._
 
 class EffSpec extends Specification with ScalaCheck { def is = s2"""
-
- The Eff monad respects the laws            $laws
 
  run the reader monad with a pure operation $readerMonadPure
  run the reader monad with a bind operation $readerMonadBind
@@ -30,20 +24,16 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
 """
 
-  def laws = pending //scalaz.laws.discipline.MonadTests[F].monad[Int, Int, Int]
-
   def readerMonadPure = prop { (initial: Int) =>
     type R[A] = Reader[Int, A]
     type S = R |: NoEffect
 
-    run(runReader(initial)(ask[S, Int](ReaderMemberFirst))) === initial
+    ask[S, Int].runReader(initial).run === initial
   }
 
   def readerMonadBind = prop { (initial: Int) =>
     type R[A] = Reader[Int, A]
     type S = R |: NoEffect
-
-    import ReaderImplicits._
 
     val read: Eff[S, Int] =
       for {
@@ -51,7 +41,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
         j <- ask[S, Int]
       } yield i + j
 
-    run(runReader(initial)(read)) === initial * 2
+    read.runReader(initial).run === initial * 2
   }
 
   def writerTwice = prop { _ : Int =>
@@ -64,33 +54,32 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
         _ <- tell("world")
       } yield ()
 
-    run(runWriter(write)) ==== (((), List("hello", "world")))
+    write.runWriter.run ==== (((), List("hello", "world")))
   }
 
-  def readerWriter = prop { init: PositiveIntSmall =>
+  def readerWriter = prop { init: Int =>
 
     // define a Reader / Writer stack
     type W[A] = Writer[String, A]
     type R[A] = Reader[Int, A]
     type S = W |: R |: NoEffect
 
-    object SImplicits extends MemberImplicits with ReaderImplicits with WriterImplicits
+    object SImplicits extends MemberImplicits
     import SImplicits._
 
     // create actions
     val readWrite: Eff[S, Int] =
       for {
         i <- ask[S, Int]
-        _ <- tell[S, String]("initial="+i)
+        _ <- tell[S, String]("init="+i)
         j <- ask[S, Int]
         _ <- tell[S, String]("result="+(i+j))
       } yield i + j
 
     // run effects
-    val initial = init.value
-    run(runReader(initial)(runWriter(readWrite))) must_==
-      ((initial * 2, List("initial="+initial, "result="+(initial*2))))
-  }
+    readWrite.runWriter.runReader(init).run must_==
+      ((init * 2, List("init="+init, "result="+(init*2))))
+  }.setGen(Gen.posNum[Int])
 
   def stacksafeWriter = {
     type WriterString[A] = Writer[String, A]
@@ -99,18 +88,17 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     val list = (1 to 5000).toList
     val action = list.traverseU(i => WriterEffect.tell[E, String](i.toString))
 
-    run(WriterEffect.runWriter(action)) ==== ((list.as(()), list.map(_.toString)))
+    action.runWriter.run ==== ((list.as(()), list.map(_.toString)))
   }
 
   def stacksafeReader = {
     type ReaderString[A] = Reader[String, A]
     type E = ReaderString |: NoEffect
-    import ReaderImplicits._
 
     val list = (1 to 5000).toList
-    val action = list.traverseU(i => ReaderEffect.ask[E, String])
+    val action = list.traverse(i => ReaderEffect.ask[E, String])
 
-    run(ReaderEffect.runReader("h")(action)) ==== list.as("h")
+    action.runReader("h").run ==== list.as("h")
   }
 
   def stacksafeReaderWriter = {
@@ -120,30 +108,27 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
     type E = ReaderString |: WriterString |: NoEffect
 
     val list = (1 to 5000).toList
-    val action = list.traverseU(i => ReaderEffect.ask[E, String] >>= WriterEffect.tell[E, String])
+    val action = list.traverse(i => ReaderEffect.ask[E, String] >>= WriterEffect.tell[E, String])
 
-    run(WriterEffect.runWriter(ReaderEffect.runReader("h")(action))) ==== ((list.as(()), list.as("h")))
+    action.runReader("h").runWriter.run ==== ((list.as(()), list.as("h")))
   }
 
   def noEffect =
-    EvalEffect.runEval(EvalEffect.delay(1)).run === 1
+    delay(1).runEval.run === 1
 
   def oneEffect =
-    EvalEffect.delay(1).detach.value === 1
+    delay(1).detach.value === 1
 
   /**
    * Helpers
    */
-   type F[A] = Eff[NoEffect, A]
+  type F[A] = Eff[Option |: NoEffect, A]
 
-   implicit def ArbitraryEff: Arbitrary[F[Int]] = Arbitrary[F[Int]] {
-     Gen.oneOf(
-       Gen.choose(0, 100).map(i => EffMonad[NoEffect].pure(i)),
-       Gen.choose(0, 100).map(i => EffMonad[NoEffect].pure(i).map(_ + 10))
-     )
-   }
-
-   implicit def ArbitraryEffFunction: Arbitrary[F[Int => Int]] =
-     Arbitrary(arbitrary[Int => Int].map(f => EffMonad[NoEffect].pure(f)))
+  implicit def ArbitraryEff[R]: Arbitrary[Eff[R, Int]] = Arbitrary[Eff[R, Int]] {
+    Gen.oneOf(
+      Gen.choose(0, 100).map(i => EffMonad[R].point(i)),
+      Gen.choose(0, 100).map(i => EffMonad[R].point(i).map(_ + 10))
+    )
+  }
 
 }

@@ -3,7 +3,8 @@ package org.atnos.example
 import org.atnos.eff._
 import Eff._
 import Interpret._
-import scalaz._, Scalaz._
+import scalaz.syntax.all._
+import scalaz._
 
 object ConsoleEffect {
 

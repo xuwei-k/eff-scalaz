@@ -1,8 +1,8 @@
 package org.atnos.site
 
-import org.atnos.eff._
-import Effects._
-import scalaz._, Scalaz._
+import org.atnos.eff._, all._
+import scalaz._
+import scalaz.syntax.all._
 
 object OpenClosed extends UserGuidePage { def is = ("Open - Closed").title ^ s2"""
 
@@ -11,10 +11,10 @@ There are 2 ways to create effectful computations for a given effect `M`.
 You can create an **open** union of effects:${snippet {
 // '<= ' reads 'is member of '
 import Member.<=
-import StateCreation._
-import WriterCreation._
+import StateEffect._
+import WriterEffect._
 
-def putAndTell[R](i: Int)(implicit s: StateInt <= R, w: WriterString <= R): Eff[R, Int] =
+def putAndTell[R](i: Int)(implicit s: State[Int, ?] <= R, w: Writer[String, ?] <= R): Eff[R, Int] =
   for {
     _ <- put(i)
     _ <- tell("stored " + i)
@@ -38,23 +38,23 @@ On the other hand:
  - you might want to "seal" the stack to declare exactly with which set of effects you want to be working
 
 In that case you can specify an effect stack:${snippet{
-import org.atnos.eff._
-import Effects._
+import org.atnos.eff._, all._
 import scalaz.syntax.all._
 import scalaz._
-import StateCreation._
-import WriterCreation._
 
-type StateInt[A] = State[Int, A]
-type WriterString[A] = Writer[String, A]
+type S = State[Int, ?] |: Writer[String, ?] |: NoEffect
 
-type S = StateInt |: WriterString |: NoEffect
+object S {
 
-implicit val StateIntMember =
-  Member.aux[StateInt, S, WriterString |: NoEffect]
+  implicit val StateIntMember: Member.Aux[State[Int, ?], S, Writer[String, ?] |: NoEffect] =
+    Member.ZeroMember
 
-implicit val WriterStringMember =
-  Member.aux[WriterString, S, StateInt |: NoEffect]
+  implicit val WriterStringMember: Member.Aux[Writer[String, ?], S, State[Int, ?] |: NoEffect] =
+    Member.SuccessorMember
+
+}
+
+import S._
 
 def putAndTell(i: Int): Eff[S, Int] =
   for {
@@ -63,22 +63,19 @@ def putAndTell(i: Int): Eff[S, Int] =
   } yield i
 }}
 
-One major issue with this approach is that you will need to use type annotations in the for comprehension unless you
-define one implicit for each effect that is member of the stack. The implicit `StateIntMember` for example declares that:
+One major issue with this approach is that you will need to define one implicit for each effect that is member of the stack.
+The implicit `StateIntMember` for example declares that:
 
- - `StateInt` is a member of `S`
+ - `State[Int, ?]` is a member of `S`
 
- - if you remove `StateInt` from `S`, you are left with the `WriterString |: NoEffect` stack
+ - if you remove `State[Int, ?]` from `S`, you are left with the `Writer[String, ?] |: NoEffect` stack
 
 <br/>
 Now you can learn ${"how to create effects" ~/ CreateEffects}
 
 """
 
-  type StateInt[A] = State[Int, A]
-  type WriterString[A] = Writer[String, A]
-
-  type S = StateInt |: WriterString |: NoEffect
+  type S = State[Int, ?] |: Writer[String, ?] |: NoEffect
 
 
 }

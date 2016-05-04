@@ -1,13 +1,11 @@
 package org.atnos.eff
 
 import org.specs2._
-import Eff._
-import Effects._
-import ListEffect._
-
+import org.atnos.eff.all._
+import org.atnos.eff.syntax.all._
 import scalaz._, Scalaz._
 
-class ListSpec extends Specification { def is = s2"""
+class ListEffectSpec extends Specification { def is = s2"""
 
  List effect example $listEffect
 
@@ -25,7 +23,7 @@ class ListSpec extends Specification { def is = s2"""
       d <- fromList((1 to c).toList)
     } yield b + d
 
-    run(runList(action)) ==== List(2, 3, 4, 3, 4, 5)
+    action.runList.run ==== List(2, 3, 4, 3, 4, 5)
   }
 
   def stackSafe = {
@@ -34,7 +32,7 @@ class ListSpec extends Specification { def is = s2"""
     val action: Eff[L, List[Int]] =
       list.traverseU(i => singleton[L, Int](i))
 
-    run(runList(action)).flatten must_== list
+    action.runList.run.flatten must_== list
   }
 
 }

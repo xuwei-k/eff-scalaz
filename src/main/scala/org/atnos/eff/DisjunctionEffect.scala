@@ -1,28 +1,28 @@
 package org.atnos.eff
 
-import scalaz._
 import scalaz.syntax.functor._
+import scalaz._
 import Eff._
 import Interpret._
-import Effects.|:
 
 /**
  * Effect for computation which can fail
  */
-object DisjunctionEffect extends
+trait DisjunctionEffect extends
   DisjunctionCreation with
-  DisjunctionInterpretation with
-  DisjunctionImplicits
+  DisjunctionInterpretation
+
+object DisjunctionEffect extends DisjunctionEffect
 
 trait DisjunctionCreation {
 
-  /** create a Disjunction effect from a single Option value */
-  def fromOption[R, E, A](option: Option[A], e: E)(implicit member: Member[(E \/ ?), R]): Eff[R, A] =
+  /** create an disjunction effect from a single Option value */
+  def optionDisjunction[R, E, A](option: Option[A], e: E)(implicit member: Member[(E \/ ?), R]): Eff[R, A] =
     option.fold[Eff[R, A]](left[R, E, A](e))(right[R, E, A])
 
-  /** create a Disjunction effect from a single \/ value */
-  def fromDisjunction[R, E, A](xor: E \/ A)(implicit member: Member[(E \/ ?), R]): Eff[R, A] =
-    xor.fold[Eff[R, A]](left[R, E, A], right[R, E, A])
+  /** create an disjunction effect from a single Disjunction value */
+  def fromDisjunction[R, E, A](disjunction: E \/ A)(implicit member: Member[(E \/ ?), R]): Eff[R, A] =
+    disjunction.fold[Eff[R, A]](left[R, E, A], right[R, E, A])
 
   /** create a failed value */
   def left[R, E, A](e: E)(implicit member: Member[(E \/ ?), R]): Eff[R, A] =
@@ -31,16 +31,20 @@ trait DisjunctionCreation {
   /** create a correct value */
   def right[R, E, A](a: A)(implicit member: Member[(E \/ ?), R]): Eff[R, A] =
     send[E \/ ?, R, A](\/-(a))
+
 }
 
+object DisjunctionCreation extends DisjunctionCreation
+
 trait DisjunctionInterpretation {
+
   /** run the disjunction effect, yielding E \/ A */
   def runDisjunction[R <: Effects, U <: Effects, E, A](r: Eff[R, A])(implicit m: Member.Aux[(E \/ ?), R, U]): Eff[U, E \/ A] = {
     val recurse = new Recurse[(E \/ ?), U, E \/ A] {
       def apply[X](m: E \/ X) =
         m match {
-          case -\/(e) => \/-(EffMonad[U].pure(-\/(e)))
-          case \/-(a) => -\/(a)
+          case -\/(e) => \/.right(EffMonad[U].point(-\/(e)))
+          case \/-(a) => \/.left(a)
         }
     }
 
@@ -48,27 +52,22 @@ trait DisjunctionInterpretation {
   }
 
   /** run the disjunction effect, yielding Either[E, A] */
-  def runDisjunctionEither[R <: Effects, U <: Effects, E, A](r: Eff[R, A])(implicit m: Member.Aux[(E \/ ?), R, U]): Eff[U, Either[E, A]] =
+  def runEither[R <: Effects, U <: Effects, E, A](r: Eff[R, A])(implicit m: Member.Aux[(E \/ ?), R, U]): Eff[U, Either[E, A]] =
     runDisjunction(r).map(_.fold(util.Left.apply, util.Right.apply))
 
-}
+  /** catch and handle a possible left value */
+  def catchLeft[R <: Effects, E, A](r: Eff[R, A])(handle: E => Eff[R, A])(implicit member: Member[(E \/ ?), R]): Eff[R, A] = {
+    val recurse = new Recurse[(E \/ ?), R, A] {
+      def apply[X](m: E \/ X) =
+        m match {
+          case -\/(e) => \/-(handle(e))
+          case \/-(a) => -\/(a)
+        }
+    }
 
-trait DisjunctionImplicits extends DisjunctionImplicitsLower {
-  implicit def DisjunctionMemberZero[R, A]: Member.Aux[\/[A, ?], \/[A, ?] |: NoEffect, NoEffect] = {
-    type T[X] = \/[A, X]
-    Member.zero[T]
+    intercept1[R, (E \/ ?), A, A]((a: A) => a)(recurse)(r)
   }
 
-  implicit def DisjunctionMemberFirst[R <: Effects, A]: Member.Aux[\/[A, ?], \/[A, ?] |: R, R] = {
-    type T[X] = \/[A, X]
-    Member.first[T, R]
-  }
 }
 
-trait DisjunctionImplicitsLower {
-  implicit def DisjunctionMemberSuccessor[O[_], R <: Effects, U <: Effects, A](implicit m: Member.Aux[\/[A, ?], R, U]): Member.Aux[\/[A, ?], O |: R, O |: U] = {
-    type T[X] = \/[A, X]
-    Member.successor[T, O, R, U]
-  }
-}
-object DisjunctionImplicits extends DisjunctionImplicits
+object DisjunctionInterpretation extends DisjunctionInterpretation

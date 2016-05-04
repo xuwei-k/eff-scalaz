@@ -31,9 +31,9 @@ object build extends Build {
 
   lazy val projectSettings: Seq[Settings] = Seq(
     name := "eff-scalaz",
-    version in ThisBuild := "1.3",
+    version in ThisBuild := "1.5",
     organization := "org.atnos",
-    scalaVersion := "2.11.7")
+    scalaVersion := "2.11.8")
 
   lazy val compilationSettings: Seq[Settings] = Seq(
     javacOptions ++= Seq("-Xmx3G", "-Xms512m", "-Xss4m"),
@@ -49,7 +49,8 @@ object build extends Build {
             "-deprecation:false", "-Xcheckinit", "-unchecked", "-feature", "-language:_"),
     scalacOptions in Test ++= Seq("-Yrangepos"), //, "-Xlog-implicits"),
     scalacOptions in Test ~= (_.filterNot(Set("-Ywarn-dead-code"))),
-    addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.7.1")
+    addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.7.1"),
+    addCompilerPlugin("com.milessabin" % "si2712fix-plugin_2.11.8" % "1.1.0")
   )
 
   lazy val testingSettings: Seq[Settings] = Seq(

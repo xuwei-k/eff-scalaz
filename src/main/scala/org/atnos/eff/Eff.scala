@@ -1,10 +1,11 @@
 package org.atnos.eff
 
+import scalaz.NaturalTransformation
+
 import scala.annotation.tailrec
 import scalaz._
 import Union._
 import Effects._
-import Member.<=
 import Eff._
 
 /**
@@ -44,7 +45,11 @@ case class Pure[R, A](value: A) extends Eff[R, A]
  */
 case class Impure[R, X, A](union: Union[R, X], continuation: Arrs[R, X, A]) extends Eff[R, A]
 
-object Eff {
+object Eff extends EffCreation with
+  EffInterpretation with
+  EffImplicits
+
+trait EffImplicits {
 
   /**
    * Monad implementation for the Eff[R, ?] type
@@ -63,6 +68,11 @@ object Eff {
       }
   }
 
+}
+
+object EffImplicits extends EffImplicits
+
+trait EffCreation {
   /** create an Eff[R, A] value from an effectful value of type T[V] provided that T is one of the effects of R */
   def send[T[_], R, V](tv: T[V])(implicit member: Member[T, R]): Eff[R, V] =
     impure(member.inject(tv), Arrs.unit)
@@ -82,34 +92,11 @@ object Eff {
   /** create a impure value from an union of effects and a continuation */
   def impure[R, X, A](union: Union[R, X], continuation: Arrs[R, X, A]): Eff[R, A] =
     Impure[R, X, A](union, continuation)
+}
 
-  /** run a specific effect in a stack */
-  trait Runner[M[_], R, A] {
-    def onPure(a: A): Eff[R, A]
-    def onEffect[X](mx: M[X], cx: Arrs[R, X, A]): Eff[R, A]
-  }
+object EffCreation extends EffCreation
 
-  /** transform a specific effect in a stack */
-  def transform[R, M[_], N[_], A](e: Eff[R, A], t: NaturalTransformation[M, N])(implicit m: M <= R, n: N <= R): Eff[R, A] =
-    runM(e, new Runner[M, R, A] {
-      def onPure(a: A): Eff[R, A] =
-        Pure(a)
-
-      def onEffect[X](mx: M[X], cx: Arrs[R, X, A]) =
-        Impure(n.inject(t(mx)), cx.transform(t)(m, n))
-    })
-
-  /** run a specific effect in a stack */
-  def runM[R, M[_], A](e: Eff[R, A], runner: Runner[M, R, A])(implicit m: M <= R): Eff[R, A] =
-    e match {
-      case Pure(a) => runner.onPure(a)
-      case Impure(u, c) =>
-        m.project(u) match {
-          case \/-(mx) => runner.onEffect(mx, c)
-          case -\/(_)  => Impure(u, c)
-        }
-    }
-
+trait EffInterpretation {
   /**
    * base runner for an Eff value having no effects at all
    *
@@ -137,7 +124,6 @@ object Eff {
           sys.error("impossible")
       }
     }
-
     go(eff)
   }
 
@@ -148,6 +134,8 @@ object Eff {
   def effInto[R <: Effects, U, A](e: Eff[R, A])(implicit f: IntoPoly[R, U, A]): Eff[U, A] =
     f(e)
 }
+
+object EffInterpretation extends EffInterpretation
 
 /**
  * Trait for polymorphic recursion into Eff[?, A]
@@ -177,7 +165,7 @@ object IntoPoly extends IntoPolyLower {
 
         e match {
           case Pure(a) =>
-            EffMonad[U].pure(a)
+            EffMonad[U].point(a)
 
           case Impure(u, c) =>
             decompose(u) match {
@@ -195,7 +183,7 @@ trait IntoPolyLower {
 
         e match {
           case Pure(a) =>
-            EffMonad[U].pure(a)
+            EffMonad[U].point(a)
 
           case Impure(u, c) =>
             decompose(u) match {
@@ -243,7 +231,7 @@ case class Arrs[R, A, B](functions: Vector[Any => Eff[R, Any]]) {
     def go(fs: Vector[Any => Eff[R, Any]], v: Any): Eff[R, B] = {
       fs match {
         case Vector() =>
-          Eff.EffMonad[R].pure(v).asInstanceOf[Eff[R, B]]
+          Eff.EffMonad[R].point(v).asInstanceOf[Eff[R, B]]
 
         case Vector(f) =>
           f(v).asInstanceOf[Eff[R, B]]
@@ -260,10 +248,10 @@ case class Arrs[R, A, B](functions: Vector[Any => Eff[R, Any]]) {
   }
 
   def contramap[C](f: C => A): Arrs[R, C, B] =
-    Arrs(((c: Any) => Eff.EffMonad[R].pure(f(c.asInstanceOf[C]).asInstanceOf[Any])) +: functions)
+    Arrs(((c: Any) => Eff.EffMonad[R].point(f(c.asInstanceOf[C]).asInstanceOf[Any])) +: functions)
 
-  def transform[M[_], N[_]](t: NaturalTransformation[M, N])(implicit m: M <= R, n: N <= R): Arrs[R, A, B] =
-    Arrs(functions.map(f => (x: Any) => Eff.transform(f(x), t)(m, n)))
+  def transform[U, M[_], N[_]](t: NaturalTransformation[M, N])(implicit m: Member.Aux[M, R, U], n: Member.Aux[N, R, U]): Arrs[R, A, B] =
+    Arrs(functions.map(f => (x: Any) => Interpret.transform(f(x), t)(m, n)))
 }
 
 object Arrs {
@@ -272,7 +260,7 @@ object Arrs {
   def singleton[R, A, B](f: A => Eff[R, B]): Arrs[R, A, B] =
     Arrs(Vector(f.asInstanceOf[Any => Eff[R, Any]]))
 
-  /** create an Arrs function with no effect, which is similar to using an identity a => EffMonad[R].pure(a) */
+  /** create an Arrs function with no effect, which is similar to using an identity a => EffMonad[R].point(a) */
   def unit[R, A]: Arrs[R, A, A] =
     Arrs(Vector())
 }

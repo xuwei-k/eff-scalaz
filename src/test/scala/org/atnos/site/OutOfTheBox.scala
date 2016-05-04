@@ -1,28 +1,26 @@
 package org.atnos.site
 
-import org.atnos.eff._
-import Eff._
-import Effects._
-import scalaz.syntax.all._
 import scalaz._
 import org.specs2.execute.Snippets
 
 object OutOfTheBox extends UserGuidePage { def is = "Out of the box".title ^ s2"""
 
-This library comes with a few available effects:
+This library comes with the following effects:
 
  Name                | Description
  ---------           | --------------------------------------------
  `EvalEffect`        | an effect for delayed computations
  `OptionEffect`      | an effect for optional computations, stopping when there's no available value
- `DisjunctionEffect` | an effect for computations with failures, stopping when there is a failure
- `ErrorEffect`       | a mix of Eval and Disjunction, catching exceptions and returning them as failures
+ `\/Effect`         | an effect for computations with failures, stopping when there is a failure
+ `ValidateEffect`    | an effect for computations with failures, allowing to continue computations and to collect failures
+ `ErrorEffect`       | a mix of Eval and \/, catching exceptions and returning them as failures
  `ReaderEffect`      | an effect for depending on a configuration or an environment
  `WriterEffect`      | an effect to log messages
  `StateEffect`       | an effect to pass state around
- `ListEffect`        | an effect for computations returning several values (for non-determinism)
+ `ListEffect`        | an effect for computations returning several values
+ `ChooseEffect`      | an effect for modeling non-determinism
 
-<small>(from `org.atnos._`)</small>
+<small>(from `org.atnos.eff._`)</small>
 
 Each object provides methods to create effects and to interpret them.
 
@@ -32,21 +30,21 @@ This effect is a very simple one. It allows the delayed execution of computation
 
 Two methods are available to execute this effect:
 
- - `runEval[R <: Effects, A](r: Eff[Eval[?] |: R, A]): Eff[R, A]` to just execute the computations
+ - `runEval[R <: Effects, A](r: Eff[Eval |: R, A]): Eff[R, A]` to just execute the computations
 
- - `attemptEval[R <: Effects, A](r: Eff[Eval[?] |: R, A]): Eff[R, Throwable \/ A]` to execute the computations but also catch any `Throwable` that would be thrown
+ - `attemptEval[R <: Effects, A](r: Eff[Eval |: R, A]): Eff[R, Throwable \/ A]` to execute the computations but also catch any `Throwable` that would be thrown
 
-*Note*: the `?` syntax comes from the [kind-projector](https://github.com/non/kind-projector) project and allows us to avoid
-type lambdas.
+${snippet{
+import org.atnos.eff._, all._, syntax.all._
+
+delay(1 + 1).runEval.run
+}.eval}
 
 ### Option
 
 Adding an `Option` effect in your stack allows to stop computations when necessary.
 If you create a value with `some(a)` this value will be used downstream but if you use `none` all computations will stop:${snippet{
-import org.atnos.eff._
-import Eff._
-import Effects._
-import OptionEffect._
+import org.atnos.eff._, all._, syntax.all._
 import scalaz.syntax.all._
 
 /**
@@ -64,24 +62,20 @@ def addKeys(key1: String, key2: String): Eff[S, Int] = for {
   b <- fromOption(map.get(key2))
 } yield a + b
 
-(run(runOption(addKeys("key1", "key2"))), run(runOption(addKeys("key1", "missing"))))
+(addKeys("key1", "key2").runOption.run, addKeys("key1", "missing").runOption.run)
 }.eval}
 
 ### Disjunction
 
 The `Disjunction` effect is similar to the `Option` effect but adds the possibility to specify why a computation stopped: ${snippet{
-import org.atnos.eff._
-import Eff._
-import Effects._
-import DisjunctionEffect._
+import org.atnos.eff._, all._, syntax.all._
 import scalaz.syntax.all._
 import scalaz.\/
 
 /**
  * Stack declaration
  */
-type DisjunctionString[A] = String \/ A
-type S = DisjunctionString |: NoEffect
+type S = (String \/ ?) |: NoEffect
 
 // compute with this stack
 val map: Map[String, Int] =
@@ -89,16 +83,68 @@ val map: Map[String, Int] =
 
 // get 2 keys from the map and add the corresponding values
 def addKeys(key1: String, key2: String): Eff[S, Int] = for {
-  a <- fromOption(map.get(key1), s"'$key1' not found")
-  b <- fromOption(map.get(key2), s"'$key2' not found")
+  a <- optionDisjunction(map.get(key1), s"'$key1' not found")
+  b <- optionDisjunction(map.get(key2), s"'$key2' not found")
 } yield a + b
 
-(run(runDisjunction(addKeys("key1", "key2"))), run(runDisjunction(addKeys("key1", "missing"))))
+(addKeys("key1", "key2").runDisjunction.run, addKeys("key1", "missing").runDisjunction.run)
 }.eval}
+
+*Note*: the `?` syntax comes from the [kind-projector](https://github.com/non/kind-projector) project and allows us to avoid
+type lambdas.
+
+A `catchLeft` method can also be used to intercept an error and possibly recover from it:${snippet{
+// 8<--
+import org.atnos.eff._, all._, syntax.all._
+import scalaz.\/
+// 8<--
+case class TooBig(value: Int)
+type E = (TooBig \/ ?) |: NoEffect
+
+val i = 7
+
+val value: Eff[E, Int] =
+  if (i > 5) left[E, TooBig, Int](TooBig(i))
+  else       right[E, TooBig, Int](i)
+
+val action: Eff[E, Int] = catchLeft[E, TooBig, Int](value) { case TooBig(k) =>
+  if (k < 10) right[E, TooBig, Int](k)
+  else        left[E, TooBig, Int](TooBig(k))
+}
+
+action.runDisjunction.run ==== \/-(7)
+}}
+
+*Note*: the type annotations on `left` and `right` can be avoided by adding an implicit declaration in scope. You can learn
+more about this in the ${"Implicits" ~/ Implicits} section.
+
+### Validate
+
+The `Validate` effect is similar to the `\/` effect but let you accumulate failures: ${snippet{
+import org.atnos.eff._, all._, syntax.all._
+import scalaz.syntax.all._
+
+/**
+ * Stack declaration
+ */
+type S = Validate[String, ?] |: NoEffect
+
+def checkPositiveInt(i: Int): Eff[S, Unit] =
+  validateCheck(i >= 0, s"$i is not positive")
+
+def checkPositiveInts(a: Int, b: Int, c: Int): Eff[S, (Int, Int, Int)] = for {
+  _ <- checkPositiveInt(a)
+  _ <- checkPositiveInt(b)
+  _ <- checkPositiveInt(c)
+} yield (a, b, c)
+
+checkPositiveInts(1, -3, -2).runNel.run
+}.eval}
+
 
 ### Error
 
-The `Error` effect is both an `Eval` effect and a `Disjunction` one with `Throwable \/ F` on the "left" side.
+The `Error` effect is both an `Eval` effect and a `\/` one with `Throwable \/ F` on the "left" side.
  The idea is to represent computations which can fail, either with an exception or a failure. You can:
 
  - create delayed computations with `ok`
@@ -118,16 +164,18 @@ Other useful combinators are available:
 When you run an `Error` effect you get back an `Error \/ A` where `Error` is a type alias for `Throwable \/ Failure`.
 
 The `Error` object implements this effect with `String` as the `Failure` type but you are encouraged to create our own
-failure datatype and extends the `Error[MyFailureDatatype]` trait.
+failure datatype and extend the `Error[MyFailureDatatype]` trait.
 
 ### Reader
 
-The `Reader` effect is used to request values from an "environment". The main method is `ask` to get the current environment (or "configuration" if you prefer to see it that way)
-and you can run an effect stack containing a `Reader` effect by providing a value for the environment with the `runReader` method.
+The `Reader` effect is used to request values from an "environment". The main method is `ask` to get the current environment
+(or "configuration" if you prefer to see it that way) and you can run an effect stack containing a `Reader` effect by
+providing a value for the environment with the `runReader` method.
 
 It is also possible to query several independent environments in the same effect stack by "tagging" them:${snippet{
-import ReaderEffect._
+import org.atnos.eff._, all._, syntax.all._
 import scalaz._
+import scalaz.syntax.all._
 
 trait Port1
 trait Port2
@@ -142,7 +190,26 @@ type S = R1 |: R2 |: NoEffect
   p2 <- askTagged[S, Port2, Int]
 } yield "port1 is "+p1+", port2 is "+p2
 
-run(runTaggedReader(50)(runTaggedReader(80)(getPorts)))
+getPorts.runReaderTagged(80).runReaderTagged(50).run
+}.eval}
+
+You can also inject a "local" reader into a "bigger" one:${snippet {
+import org.atnos.eff._, all._, syntax.all._
+import scalaz._
+import scalaz.syntax.all._
+
+case class Conf(host: String, port: Int)
+
+type R1[A] = Reader[Int, A]
+type R2[A] = Reader[Conf, A]
+
+type S = R1 |: NoEffect
+
+val getPort: Eff[S, String] = for {
+  p1 <- ask[S, Int]
+} yield "the port is " + p1
+
+getPort.localReader((_: Conf).port).runReader(Conf("prod", 80)).run
 }.eval}
 
 ### Writer
@@ -154,24 +221,24 @@ The `Writer` effect is classically used to log values alongside computations. Ho
  - it can not really be used to log values to a file because all the values are being kept in memory until the
   computation ends
 
-The `Writer` effect has none of these issues. When you want to log a value you simply `tell` it and when you run the effect you can select exactly the strategy you want:
+The `Writer` effect has none of these issues. When you want to log a value you simply `tell` it and when you run the effect
+you can select exactly the strategy you want:
 
   - `runWriter` simply accumulates the values in a `List` which is ok if you don't have too many of them
 
   - `runWriterFold` uses a `Fold` to act on each value, keeping some internal state between each invocation
 
 You can then define your own custom `Fold` to log the values to a file:${snippet{
-
+import org.atnos.eff._, all._, syntax.all._
+import scalaz.syntax.all._
 import java.io.PrintWriter
-import WriterEffect._
 
-type W[A] = Writer[String, A]
-type S = W |: NoEffect
+type S = Writer[String, ?] |: NoEffect
 
 val action: Eff[S, Int] = for {
- a <- EffMonad[S].pure(1)
+ a <- EffMonad[S].point(1)
  _ <- tell("first value "+a)
- b <- EffMonad[S].pure(2)
+ b <- EffMonad[S].point(2)
  _ <- tell("second value "+b)
 
 } yield a + b
@@ -188,7 +255,7 @@ def fileFold(path: String) = new Fold[String, Unit] {
     s.close
 }
 
-run(runWriterFold(action)(fileFold("target/log")))
+action.runWriterFold(fileFold("target/log")).run
 io.Source.fromFile("target/log").getLines.toList
 }.eval}
 
@@ -201,8 +268,8 @@ A `State` effect can be seen as the combination of both a `Reader` and a `Writer
  - `put` set a new state
 
 Let's see an example showing that we can also use tags to track different states at the same time:${snippet{
-import StateEffect._
-import scalaz.{State => _, _}
+import org.atnos.eff._, all._, syntax.all._
+import scalaz._, Scalaz._
 
 trait Var1
 trait Var2
@@ -221,20 +288,64 @@ val swapVariables: Eff[S, String] = for {
   w2 <- getTagged[S, Var2, Int]
 } yield "initial: "+(v1, v2).toString+", final: "+(w1, w2).toString
 
-run(evalTagged(50)(evalTagged(10)(swapVariables)))
+swapVariables.evalStateTagged(10).evalStateTagged(50).run
 }.eval}
 
 In the example above we have used an `eval` method to get the `A` in `Eff[R, A]` but it is also possible to get both the
  value and the state with `run` or only the state with `exec`.
 
+Instead of tagging state effects it is also possible to transform a State effect acting on a "small" state into a State
+effect acting on a "bigger" state:${snippet{
+import org.atnos.eff._, all._, syntax.all._
+import scalaz.syntax.all._
+
+type Count[A] = State[Int, A]
+type Sum[A] = State[Int, A]
+type Mean[A] = State[(Int, Int), A]
+
+type S1 = Count |: NoEffect
+type S2 = Sum |: NoEffect
+type S = Mean |: NoEffect
+
+def count(list: List[Int]): Eff[S1, String] = for {
+  _ <- put(list.size)
+} yield s"there are ${list.size} values"
+
+def sum(list: List[Int]): Eff[S2, String] = {
+  val s = if (list.isEmpty) 0 else list.sum
+  for {
+    _ <- put(s)
+  } yield s"the sum is $s"
+}
+
+def mean(list: List[Int]): Eff[S, String] = for {
+  m1 <- count(list).lensState((_:(Int, Int))._1, (s: (Int,Int), i: Int) => (i, s._2))
+  m2 <- sum(list).lensState((_:(Int, Int))._2, (s: (Int, Int), i: Int) => (s._1, i))
+} yield m1+"\n"+m2
+
+mean(List(1, 2, 3)).runState((0, 0)).run
+}.eval}
+
 ### List
 
-The `List` effect is used for non-deterministic computations, that is computations which may return several values.
+The `List` effect is used for computations which may return several values.
  A simple example using this effect would be:${ListSnippets.snippet1}
 
 
+### Choose
+
+The `Choose` effect is used for non-deterministic computations. With the `Choose` effect you can model computations which either:
+
+  - return no result at all
+  - choose between 2 different computations
+
+`Choose` is actually a generalization of `List` where instead of "exploring" all the branches we might "cut" some of them.
+That behaviour is controlled by the `Alternative[F]` instance you use when running `Choose`.
+
+For example if we take `List` to run a similar example as before, we get the list of all the accepted pairs:${ChooseSnippets.snippet1}
+
 <br/>
-Now you can learn about ${"open/closed effect stacks" ~/ OpenClosed}.
+Now you can learn how to  ${"create your own effects" ~/ CreateEffects}.
 
 """
 
@@ -242,7 +353,8 @@ Now you can learn about ${"open/closed effect stacks" ~/ OpenClosed}.
 
 object ListSnippets extends Snippets {
   val snippet1 = snippet{
-import ListEffect._
+import org.atnos.eff._, all._, syntax.all._
+import scalaz.syntax.all._
 
 type S = List |: NoEffect
 
@@ -255,7 +367,30 @@ def pairsBiggerThan(list: List[Int], n: Int): Eff[S, (Int, Int)] = for {
            else           empty
 } yield found
 
-run(runList(pairsBiggerThan(List(1, 2, 3, 4), 5)))
+pairsBiggerThan(List(1, 2, 3, 4), 5).runList.run
+}.eval
+
+}
+
+object ChooseSnippets extends Snippets {
+val snippet1 = snippet{
+import org.atnos.eff._, all._, syntax.all._
+import scalaz.syntax.all._
+
+type S = Choose |: NoEffect
+
+// create all the possible pairs for a given list
+// where the sum is greater than a value
+def pairsBiggerThan(list: List[Int], n: Int): Eff[S, (Int, Int)] = for {
+  a <- chooseFrom(list)
+  b <- chooseFrom(list)
+  found <- if (a + b > n) EffMonad[S].point((a, b))
+           else           zero
+} yield found
+
+import scalaz.std.list._
+
+pairsBiggerThan(List(1, 2, 3, 4), 5).runChoose.run
 }.eval
 
 }

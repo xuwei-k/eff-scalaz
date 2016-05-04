@@ -1,9 +1,7 @@
 package org.atnos.site
 
 import scalaz._
-import org.atnos.eff._
-import Effects._
-import EvalEffect._
+import org.atnos.eff._, all._
 
 object Introduction extends UserGuidePage { def is = "Introduction".title ^ s2"""
 
@@ -19,9 +17,9 @@ There are lots of advantages to this approach:
 
  - the underlying implementation is performant and stack-safe
 
- - existing monad datatypes can be integrated to the library
+ - existing monadic datatypes can be integrated to the library
 
- - it is possible to integrate different effect stacks into one
+ - effect stacks can be modified or combined
 
 This is probably very abstract so let's see more precisely what this all means.
 
@@ -32,28 +30,25 @@ returned by the computation, possibly triggering some effects when evaluated.
 
 The effects `R` are modelled by a type-level list of "effect constructors", for example:${snippet{
 import scalaz._
-import Effects._
-import EvalEffect._
+import org.atnos.eff._, all._
 
-type ReaderInt[X] = Reader[Int, X]
-type WriterString[X] = Writer[String, X]
-
-type Stack = ReaderInt |: WriterString |: Eval |: NoEffect
+type Stack = Reader[Int, ?] |: Writer[String, ?] |: Eval |: NoEffect
 
 }}
 The stack `Stack` above declares 3 effects:
 
- - a `ReaderInt` effect to access some configuration number of type `Int`
+ - a `Reader[Int, ?]` effect to access some configuration number of type `Int`
 
- - a `WriterString` effect to log string messages
+ - a `Writer[String, ?]` effect to log string messages
 
  - an `Eval` effect to only compute values on demand (a bit like lazy values)
 
 Now we can write a program with those 3 effects, using the primitive operations provided by `ReaderEffect`, `WriterEffect` and `EvalEffect`:${snippet{
-import Eff._
-import scalaz._, Scalaz._
-import ReaderCreation._
-import WriterCreation._
+import scalaz.syntax.all._
+import org.atnos.eff.all._
+import org.atnos.eff.syntax.all._
+import Stack._
+  import Stack._
 
 val program: Eff[Stack, Int] = for {
   // get the configuration
@@ -69,46 +64,44 @@ val program: Eff[Stack, Int] = for {
   _ <- tell("the result is "+a)
 } yield a
 
-import ReaderEffect._
-import WriterEffect._
-
 // run the action with all the interpreters
 // each interpreter running one effect
-run(runWriter(runEval(runReader(6)(program))))
+program.runReader(6).runWriter.runEval.run
 }.eval}
 
 As you can see, all the effects of the `Stack` type are being executed one by one:
 
  1. the `Reader` effect, needing a value to inject
- 2. the `Writer` effect, which logs values
+ 2. the `Writer` effect, which logs messages
  3. the `Eval` effect to compute the "power of 2 computation"
  4. finally the `NoEffect` effect (provided by the `Eff` object) to get the final value out of `Eff[Stack, Int]`
 
 <br/>
 Maybe you noticed that the effects are not being executed in the same order as their order in the stack declaration.
 The effects can indeed be executed in any order. This doesn't mean though that the results will be the same. For example
-running `Writer` then `Disjunction` returns `String \/ (A, List[String])` whereas running `Disjunction` then `Writer` returns
-`(String \/ A, List[String])`.
+running the `Writer` effect then `\/` effect returns `String \/ (A, List[String])` whereas running the `\/` effect
+ then the `Writer` effect returns `(String \/ A, List[String])`.
 
-This is only possible because of pretty specific implicits definitions in the library to guide Scala type inference towards the
-right return types. You can learn more on implicits in the ${"implicits" ~/ OpenClosed} section.
+This all works thanks to some implicits definitions guiding Scala type inference towards the
+right return types. You can learn more on implicits in the ${"implicits" ~/ Implicits} section.
 
 Otherwise you can also learn about ${"other effects" ~/ OutOfTheBox} supported by this library.
 """
 
-  type ReaderInt[X] = Reader[Int, X]
-  type WriterString[X] = Writer[String, X]
+  type Stack = Reader[Int, ?] |: Writer[String, ?] |: Eval |: NoEffect
 
-  type Stack = ReaderInt |: WriterString |: Eval |: NoEffect
+  object Stack {
 
-  implicit val ReaderIntMember =
-    Member.aux[ReaderInt, Stack, WriterString |: Eval |: NoEffect]
+    implicit lazy val ReaderMember: Member.Aux[Reader[Int, ?], Stack, Writer[String, ?] |: Eval |: NoEffect] =
+      Member.ZeroMember
 
-  implicit val WriterStringMember =
-    Member.aux[WriterString, Stack, ReaderInt |: Eval |: NoEffect]
+    implicit lazy val WriterMember: Member.Aux[Writer[String, ?], Stack, Reader[Int, ?] |: Eval |: NoEffect] =
+      Member.SuccessorMember
 
-  implicit val EvalMember =
-    Member.aux[Eval, Stack, ReaderInt |: WriterString |: NoEffect]
+    implicit lazy val EvalMember: Member.Aux[Eval, Stack, Reader[Int, ?] |: Writer[String, ?] |: NoEffect] =
+      Member.SuccessorMember
+
+  }
 
 }
 

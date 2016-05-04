@@ -1,66 +1,83 @@
 package org.atnos.site
 
-import org.atnos.eff._
-import Eff._
-import Effects._
-import EvalEffect._
-import WriterEffect._
-import snippets._, HadoopS3Snippet._
+import snippets._
+import HadoopS3Snippet._
 import HadoopStack._
-import S3Stack.{WriterString=>_,_}
+import S3Stack.{WriterString => _, _}
 import scalaz.syntax.all._
+import scalaz.~>
 
 object TransformStack extends UserGuidePage { def is = "Transforming stacks".title ^ s2"""
 
 ### Transform an effect to another
 
-Once you get a `Eff[R, A]` action you might want to act on one of the effects, for example to transform `Option` effects
-into `Disjunction` effects:${snippet{
-import OptionEffect._
-import DisjunctionEffect.runDisjunction
-import syntax.eff._
+#### Change the effect
+
+A typical use case for this is to transform a stack having a `Reader[S, ?]` effect to a stack having a `Reader[B, ?]` effect
+ where `S` is "contained" in `B` (meaning that there is a mapping from `B`, "big", to `S`, "small"). Here is an example:${snippet{
+import org.atnos.eff._, all._
+import org.atnos.eff.syntax.all._
 import scalaz._
 
-type DisjunctionString[A] = String \/ A
+case class Conf(host: String, port: Int)
 
-type S = Option |: DisjunctionString |: NoEffect
+type ReaderPort[A] = Reader[Int, A]
+type ReaderHost[A] = Reader[String, A]
+type ReaderConf[A] = Reader[Conf, A]
 
-implicit val OptionMember =
-  Member.aux[Option, S, DisjunctionString |: NoEffect]
+type S1 = ReaderHost |: Option |: NoEffect
+type S2 = ReaderPort |: Option |: NoEffect
+type SS = ReaderConf |: Option |: NoEffect
 
-implicit val DisjunctionStringMember =
-  Member.aux[DisjunctionString, S, Option |: NoEffect]
+implicit val ReaderHostMember: Member.Aux[ReaderHost, S1, Option |: NoEffect] =
+  Member.first
 
-val map: Map[String, Int] =
-  Map("key1" -> 10, "key2" -> 20)
+implicit val ReaderPortMember: Member.Aux[ReaderPort, S2, Option |: NoEffect] =
+  Member.first
 
-// get 2 keys from the map and add the corresponding values
-def addKeys(key1: String, key2: String): Eff[S, Int] = for {
-  a <- fromOption(map.get(key1))
-  b <- fromOption(map.get(key2))
-} yield a + b
+implicit val ReaderConfMember: Member.Aux[ReaderConf, SS, Option |: NoEffect] =
+  Member.first
 
-// provide a default error message
-def addKeysWithDefaultMessage(key1: String, key2: String, message: String): Eff[S, Int] =
-  addKeys(key1, key2).transform[Option, DisjunctionString](new NaturalTransformation[Option, DisjunctionString] {
-    def apply[A](o: Option[A]) = o.fold(\/.left[String, A](message))(\/.right[String, A])
-  })
+val readHost: Eff[S1, String] = for {
+  c <- ask[S1, String]
+  h <- OptionEffect.some[S1, String]("hello")
+} yield h
 
-import DisjunctionImplicits._
+val readPort: Eff[S2, String] = for {
+  c <- ask[S2, Int]
+  h <- OptionEffect.some[S2, String]("world")
+} yield h
 
-(run(runDisjunction(runOption(addKeys("key1", "missing")))),
- run(runDisjunction(runOption(addKeysWithDefaultMessage("key1", "missing", "Key not found")))))
+val fromHost = new (ReaderHost ~> ReaderConf) {
+  def apply[X](r: ReaderHost[X]) = Reader((c: Conf) => r.run(c.host))
+}
 
+val fromPort = new (ReaderPort ~> ReaderConf) {
+  def apply[X](r: ReaderPort[X]) = Reader((c: Conf) => r.run(c.port))
+}
+
+val action: Eff[SS, String] = for {
+  s1 <- readHost.transform(fromHost)
+  s2 <- readPort.transform(fromPort)
+} yield s1 + " " + s2
+
+action.runReader(Conf("www.me.com", 8080)).runOption.run
 }.eval}
-                                                                                        
+
+There are also specialized versions of `transform` for `Reader` and `State`:
+
+ - `ReaderEffect.localReader` takes a "getter" `B => A` to transform a stack with a `Reader[A, ?]` into a stack with a `Reader[B, ?]`
+ - `StateEffect.lensState` takes a "getter" `S => T` and a "setter" `(S, T) => S` to to transform a stack with a `State[T, ?]` into a stack with a `State[S, ?]`
+
 ### Merge stacks
 
-We have seen, in the ${"open-closed" ~/ OpenClosed} section, that we can create effects for a given effect stack, for example
- to interact with a [Hadoop](https://hadoop.apache.org) cluster. We can also define another stack, for storing and retrieving data on [S3](https://aws.amazon.com/s3).
+We can create effects for a given effect stack, for example to interact with a [Hadoop](https://hadoop.apache.org) cluster.
+ We can also define another stack, for storing and retrieving data on [S3](https://aws.amazon.com/s3).
 ${definition[HadoopS3Snippet]}
 
 So what happens when you want to both use S3 and Hadoop? As you can see from the definition above those 2 stacks share
 some common effects, so the resulting stack we want to work with is:${snippet{
+import org.atnos.eff._, all._
 import HadoopStack._
 import S3Stack.{WriterString=>_,_}
 
@@ -69,8 +86,8 @@ type HadoopS3 = S3Reader |: HadoopReader |: WriterString |: Eval |: NoEffect
 
 Then we can use the `into` method to inject effects from each stack into this common stack:${snippet{
 
-// this imports the `into` syntax
-import org.atnos.eff.syntax.eff._
+// this imports the `into` and runXXX syntax
+import org.atnos.eff.syntax.all._
 
 val action = for {
   // read a file from hadoop
@@ -80,8 +97,10 @@ val action = for {
   _ <- writeFile("key", s)  .into[HadoopS3]
 } yield ()
 
+import HadoopS3._
+import org.atnos.eff.ReaderImplicits._
 // and we can run the composite action
-run(runEval(runWriter(runHadoopReader(HadoopConf(10))(runS3Reader(S3Conf("bucket"))(action)))))
+action.runReaderTagged(S3Conf("bucket")).runReaderTagged(HadoopConf(10)).runWriter.runEval.run
 }.eval}
 
 You can find a fully working example of this approach in `src/test/org/atnos/example/StacksSpec`.

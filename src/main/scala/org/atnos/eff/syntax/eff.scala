@@ -1,26 +1,23 @@
 package org.atnos.eff
 package syntax
 
-import Eff._
-import Member._
+import scalaz.Monad
+import scalaz.NaturalTransformation
 import org.atnos.eff.Effects.|:
-
-import scalaz._
 
 /**
  * Operations of Eff[R, A] values
  */
-object eff {
+object eff extends eff
+
+trait eff {
 
   implicit class EffOps[R <: Effects, A](e: Eff[R, A]) {
     def into[U](implicit f: IntoPoly[R, U, A]): Eff[U, A] =
       Eff.effInto(e)(f)
 
-    def transform[M[_], N[_]](t: M ~> N)(implicit m: M <= R, n: N <= R): Eff[R, A] =
-      Eff.transform(e, t)(m, n)
-
-    def runM[M[_]](runner: Runner[M, R, A])(implicit m: M <= R): Eff[R, A] =
-      Eff.runM(e, runner)
+    def transform[BR, U, M[_], N[_]](t: NaturalTransformation[M, N])(implicit m: Member.Aux[M, R, U], n: Member.Aux[N, BR, U]): Eff[BR, A] =
+      Interpret.transform(e, t)(m, n)
   }
 
   implicit class EffNoEffectOps[A](e: Eff[NoEffect, A]) {
@@ -33,5 +30,8 @@ object eff {
       Eff.detach(e)
   }
 
-
+  implicit class EffMonadicOps[R <: Effects, M[_], A](e: Eff[R, M[A]]) {
+    def collapse(implicit m: M <= R): Eff[R, A] =
+      Eff.collapse[R, M, A](e)
+  }
 }

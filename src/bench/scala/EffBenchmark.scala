@@ -18,7 +18,7 @@ object EffBenchmark extends Bench.OfflineReport {
   } yield (0 until size).toList
 
   def simpleSend[R, V](v: =>V)(implicit m: Member[Eval, R]) =
-    impure(m.inject(Name(v)), Arrs.singleton((v: V) => EffMonad[R].pure(v)))
+    impure(m.inject(Name(v)), Arrs.singleton((v: V) => EffMonad[R].point(v)))
 
 
   performance of "send" in {
