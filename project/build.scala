@@ -5,41 +5,61 @@ import xerial.sbt.Sonatype._
 import com.typesafe.sbt.SbtSite.{SiteKeys, site}
 import com.typesafe.sbt.SbtGhPages.{GhPagesKeys, ghpages}
 import com.typesafe.sbt.SbtGit.git
+import org.scalajs.sbtplugin.cross.{CrossProject, CrossType}
 
 object build extends Build {
   type Settings = Def.Setting[_]
 
-  lazy val project = Project(
-    id = "eff-scalaz",
-    base = file("."),
-    settings = Defaults.coreDefaultSettings ++
-               dependencies             ++
-               projectSettings          ++
-               compilationSettings      ++
-               testingSettings          ++
-               publicationSettings
-    ).configs(Benchmark).settings(inConfig(Benchmark)(Defaults.testSettings):_*)
+  lazy val root = project.in(file(".")).
+    aggregate(js, jvm).
+    settings(
+      publish := {},
+      publishLocal := {}
+    )
 
-  lazy val dependencies: Seq[Settings] =
+  lazy val effProject = CrossProject("eff", new File("."), CrossType.Full).
+    settings((
+      Defaults.coreDefaultSettings ++
+      sharedDependencies           ++
+      projectSettings              ++
+      compilationSettings          ++
+      publicationSettings
+      ):_*).
+    jvmSettings((
+      jvmDependencies ++
+      testingSettings
+    ):_*).configs(Benchmark).settings(inConfig(Benchmark)(Defaults.testSettings):_*)
+
+  lazy val jvm = effProject.jvm
+  lazy val js = effProject.js
+
+  lazy val sharedDependencies: Seq[Settings] =
     Seq[Settings](libraryDependencies ++=
-      depend.scalaz     ++
+      depend.scalaz
+    ) ++
+    Seq(resolvers := depend.resolvers)
+
+  lazy val jvmDependencies: Seq[Settings] =
+    Seq[Settings](libraryDependencies ++=
       depend.specs2     ++
-      depend.disorder   ++
       depend.scalameter
     ) ++
     Seq(resolvers := depend.resolvers)
 
   lazy val projectSettings: Seq[Settings] = Seq(
     name := "eff-scalaz",
-    version in ThisBuild := "1.5",
+    version in ThisBuild := "1.7",
     organization := "org.atnos",
     scalaVersion := "2.11.8")
 
   lazy val compilationSettings: Seq[Settings] = Seq(
+    scalaBinaryVersion := "2.11",
+    resolvers += "scalatl" at "http://milessabin.com/scalatl",
     javacOptions ++= Seq("-Xmx3G", "-Xms512m", "-Xss4m"),
     maxErrors := 20,
     triggeredMessage := Watched.clearWhenTriggered,
-    scalacOptions ++= Seq("-Xfatal-warnings",
+    scalacOptions ++= Seq(
+            "-Xfatal-warnings",
             "-Xlint",
             "-Yno-adapted-args",
             "-Ywarn-numeric-widen",
@@ -49,8 +69,9 @@ object build extends Build {
             "-deprecation:false", "-Xcheckinit", "-unchecked", "-feature", "-language:_"),
     scalacOptions in Test ++= Seq("-Yrangepos"), //, "-Xlog-implicits"),
     scalacOptions in Test ~= (_.filterNot(Set("-Ywarn-dead-code"))),
+    scalacOptions in console := Seq(),
     addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.7.1"),
-    addCompilerPlugin("com.milessabin" % "si2712fix-plugin_2.11.8" % "1.1.0")
+    addCompilerPlugin("com.milessabin" % "si2712fix-plugin_2.11.8" % "1.2.0")
   )
 
   lazy val testingSettings: Seq[Settings] = Seq(
@@ -64,7 +85,7 @@ object build extends Build {
   lazy val Benchmark = config("bench") extend Test
 
   lazy val publicationSettings: Seq[Settings] =
-    promulgate.library("org.atnos.info.eff", "specs2") ++
+    promulgate.library("org.atnos.eff", "atnos") ++
     Seq(
     publishTo in Global <<= version { v: String =>
       val nexus = "https://oss.sonatype.org/"
@@ -85,8 +106,8 @@ object build extends Build {
           </license>
         </licenses>
         <scm>
-          <url>http://github.com/etorreborre/eff-scalaz</url>
-          <connection>scm:http:http://etorreborre@github.com/etorreborre/eff-scalaz.git</connection>
+          <url>http://github.com/atnos-org/eff-scalaz</url>
+          <connection>scm:git:git@github.com:atnos-org/eff-scalaz.git</connection>
         </scm>
         <developers>
           <developer>
