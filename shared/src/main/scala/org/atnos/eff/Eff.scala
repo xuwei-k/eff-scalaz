@@ -38,6 +38,9 @@ sealed trait Eff[R, A] {
   def map[B](f: A => B): Eff[R, B] =
     EffMonad[R].map(this)(f)
 
+  def ap[B](f: Eff[R, A => B]): Eff[R, B] =
+    EffApplicative[R].ap(this)(f)
+
   def flatMap[B](f: A => Eff[R, B]): Eff[R, B] =
     EffMonad[R].bind(this)(f)
 

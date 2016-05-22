@@ -2,8 +2,9 @@ package org.atnos.eff
 package syntax
 
 import Member.<=
-import ErrorEffect._
 import scalaz._
+import scala.reflect.ClassTag
+import ErrorEffect._
 
 object error extends error
 
@@ -19,6 +20,9 @@ trait error {
 
     def orElse(action2: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
       ErrorEffect.orElse(action, action2)
+
+    def ignore[E <: Throwable : ClassTag](implicit m: ErrorOrOk <= R): Eff[R, Unit] =
+      ErrorEffect.ignoreException(action)
   }
 
   implicit class ErrorOrOkOps[A](c: Error \/ A) {

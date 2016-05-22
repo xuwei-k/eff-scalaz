@@ -5,6 +5,7 @@ import scalaz._, Scalaz._
 import Eff._
 import Interpret._
 import org.atnos.eff.EvalEffect.Eval
+import scala.reflect.ClassTag
 
 /**
  * Effect for computation which can fail and return a Throwable, or just stop with a failure
@@ -53,7 +54,8 @@ trait ErrorCreation[F] extends ErrorTypes[F] {
     error(\/.left(t))
 }
 
-trait ErrorInterpretation[F] extends ErrorCreation[F] { outer =>
+trait ErrorInterpretation[F] extends ErrorCreation[F] {
+  outer =>
 
   /**
    * Run an error effect.
@@ -69,7 +71,9 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] { outer =>
 
           case \/-(a) =>
             try \/.left(a.value)
-            catch { case NonFatal(t) => \/.right(EffMonad[U].point(\/.left(\/.left(t)))) }
+            catch {
+              case NonFatal(t) => \/.right(EffMonad[U].point(\/.left(\/.left(t))))
+            }
         }
     }
 
@@ -88,7 +92,9 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] { outer =>
           case -\/(e) => \/.right(last.flatMap(_ => outer.error[R, A](e)))
           case \/-(x) =>
             try \/.left(x.value)
-            catch { case NonFatal(t) => \/.right(last.flatMap(_ => outer.exception[R, A](t))) }
+            catch {
+              case NonFatal(t) => \/.right(last.flatMap(_ => outer.exception[R, A](t)))
+            }
         }
     }
     intercept[R, ErrorOrOk, A, A]((a: A) => last.as(a), recurse)(action)
@@ -107,19 +113,44 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] { outer =>
    *
    * Execute a second action if the first one is not successful, based on the error
    */
-  def whenFailed[R <: Effects, A](action: Eff[R, A], onError: Error => Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] = {
-    val recurse = new Recurse[ErrorOrOk, R, A] {
-      def apply[X](current: ErrorOrOk[X]): X \/ Eff[R, A] =
+  def catchError[R <: Effects, A, B](action: Eff[R, A], pure: A => B, onError: Error => Eff[R, B])(implicit m: ErrorOrOk <= R): Eff[R, B] = {
+    val recurse = new Recurse[ErrorOrOk, R, B] {
+      def apply[X](current: ErrorOrOk[X]): X \/ Eff[R, B] =
         current match {
-          case -\/(e) => \/.right(onError(e))
+          case -\/(e) => \/-(onError(e))
           case \/-(x) =>
-            try \/.left(x.value)
-            catch { case NonFatal(t) => \/.right(onError(\/.left(t))) }
+            try -\/[X](x.value)
+            catch {
+              case NonFatal(t) => \/-(onError(-\/(t)))
+            }
         }
     }
-    intercept1[R, ErrorOrOk, A, A]((a: A) => a)(recurse)(action)
+    intercept1[R, ErrorOrOk, A, B](pure)(recurse)(action)
   }
+
+  /**
+   * evaluate 1 action possibly having error effects
+   *
+   * Execute a second action if the first one is not successful, based on the error
+   *
+   * The final value type is the same as the original type
+   */
+  def whenFailed[R <: Effects, A](action: Eff[R, A], onError: Error => Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
+    catchError(action, identity[A], onError)
+
+  /**
+   * ignore one possible exception that could be thrown
+   */
+  def ignoreException[R <: Effects, E <: Throwable : ClassTag, A](action: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, Unit] =
+    catchError[R, A, Unit](action, (a: A) => (), { error: Error =>
+      error match {
+        case -\/(t) if implicitly[ClassTag[E]].runtimeClass.isInstance(t) =>
+          EffMonad[R].point(())
+        case other => outer.error(other)
+      }
+    })
 }
+
 
 /**
  * Simple instantiation of the ErrorEffect trait with String as a Failure type
@@ -134,11 +165,11 @@ object ErrorEffect extends ErrorEffect[String] {
 
   def renderWithStack(t: Throwable): String =
     s"""============================================================
-       |${render(t)}
-       |------------------------------------------------------------
-       |${traceWithIndent(t, "    ")}
-       |============================================================
-       |""".stripMargin
+        |${render(t)}
+        |------------------------------------------------------------
+        |${traceWithIndent(t, "    ")}
+        |============================================================
+        |""".stripMargin
 
   def trace(t: Throwable): String =  {
     val out = new java.io.StringWriter
