@@ -46,7 +46,7 @@ class ErrorEffectSpec extends Specification { def is = s2"""
     val messages: ListBuffer[String] = new ListBuffer[String]
 
     val action =
-      OK[R, Unit] { throw new Exception("boom"); messages.append("first") }
+      OK[R, Unit] { throwException; messages.append("first") }
 
     val all: Eff[R, Unit] =
       action.andFinally(OK(messages.append("final")))
@@ -73,7 +73,7 @@ class ErrorEffectSpec extends Specification { def is = s2"""
     val messages: ListBuffer[String] = new ListBuffer[String]
 
     val action =
-      OK[R, Int] { throw new Exception("boom"); messages.append("first"); 1 }
+      OK[R, Int] { throwException; messages.append("first"); 1 }
 
     val all: Eff[R, Int] =
       action.orElse(OK { messages.append("second"); 2 })
@@ -90,7 +90,7 @@ class ErrorEffectSpec extends Specification { def is = s2"""
 
     val action: Eff[E, Int] = for {
       _ <- tell[E, String]("start")
-      a <- OK[E, Int] { throw new Exception("boom"); 1 }
+      a <- OK[E, Int](throwException)
       _ <- tell[E, String]("end")
     } yield a
 
@@ -98,12 +98,12 @@ class ErrorEffectSpec extends Specification { def is = s2"""
       action.runError.runWriter.runEval.run
 
     (result._2 ==== List("start")) and
-    (result._1.toErrorSimpleMessage ==== Option("Error[java.lang.Exception] boom"))
+    (result._1.toErrorSimpleMessage ==== Option("Error[java.lang.IllegalArgumentException] boom"))
   }
 
   def ignored = {
     val action =
-      OK[R, Int] { throw new IllegalArgumentException("boom"); 1 }
+      OK[R, Int](throwException)
 
     val action2: Eff[R, Unit] =
       action.ignore[IllegalArgumentException]
@@ -112,5 +112,12 @@ class ErrorEffectSpec extends Specification { def is = s2"""
 
   }
 
+  /**
+   * HELPERS
+   */
+
+  /** throw an exception with no dead code warning */
+  def throwException: Int =
+    if ("1".toInt == 1) throw new IllegalArgumentException("boom") else 1
 }
 

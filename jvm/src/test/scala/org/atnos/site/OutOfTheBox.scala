@@ -20,6 +20,8 @@ This library comes with the following effects:
  `ListEffect`        | an effect for computations returning several values
  `ChooseEffect`      | an effect for modeling non-determinism
  `FutureEffect`      | an effect using Scala's Future
+ `FuturezEffect`     | an effect using Scalaz's Future
+ `TaskEffect`        | an effect using Scalaz's Task
 
 <small>(from `org.atnos.eff._`)</small>
 
