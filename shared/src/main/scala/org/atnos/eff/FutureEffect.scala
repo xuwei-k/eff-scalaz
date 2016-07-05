@@ -18,16 +18,18 @@ trait FutureEffect extends
 object FutureEffect extends FutureEffect
 
 trait FutureCreation {
-  def sync[R, A](a: A)(implicit m: Member[Future, R]): Eff[R, A] =
+  type _Future[R] = Future <= R
+
+  def sync[R :_Future, A](a: A): Eff[R, A] =
     pure(a)
 
-  def async[R, A](a: =>A)(implicit m: Member[Future, R], ec: ExecutionContext): Eff[R, A] =
+  def async[R :_Future, A](a: =>A)(implicit ec: ExecutionContext): Eff[R, A] =
     send(Future(a))
 }
 
 trait FutureInterpretation {
 
-  def awaitFuture[R <: Effects, U <: Effects, A](r: Eff[R, A])(atMost: FiniteDuration)
+  def awaitFuture[R, U, A](r: Eff[R, A])(atMost: FiniteDuration)
       (implicit m: Member.Aux[Future, R, U], ec: ExecutionContext): Eff[U, Throwable \/ A] = {
     val recurse = new Recurse[Future, U, Throwable \/ A] {
       def apply[X](m: Future[X]) =

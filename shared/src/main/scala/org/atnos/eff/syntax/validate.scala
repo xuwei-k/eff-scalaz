@@ -7,7 +7,7 @@ object validate extends validate
 
 trait validate {
 
-  implicit class ValidationEffectOps[R <: Effects, A](e: Eff[R, A]) {
+  implicit class ValidationEffectOps[R, A](e: Eff[R, A]) {
 
     def runNel[E](implicit m: Member[Validate[E, ?], R]): Eff[m.Out, NonEmptyList[E] \/ A] =
       ValidateInterpretation.runNel(e)(m.aux)

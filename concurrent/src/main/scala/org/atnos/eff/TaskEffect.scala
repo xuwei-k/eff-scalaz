@@ -35,7 +35,7 @@ trait TaskCreation {
 
 trait TaskInterpretation {
 
-  def attemptTask[R <: Effects, U <: Effects, A](r: Eff[R, A])(atMost: Duration)
+  def attemptTask[R, U, A](r: Eff[R, A])(atMost: Duration)
       (implicit m: Member.Aux[Task, R, U]): Eff[U, Throwable \/ A] = {
     val recurse = new Recurse[Task, U, Throwable \/ A] {
       def apply[X](m: Task[X]) =

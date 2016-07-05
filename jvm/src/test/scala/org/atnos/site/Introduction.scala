@@ -91,14 +91,13 @@ Otherwise you can also learn about ${"other effects" ~/ OutOfTheBox} supported b
   object Stack {
 
     implicit lazy val ReaderMember: Member.Aux[Reader[Int, ?], Stack, Writer[String, ?] |: Eval |: NoEffect] =
-      Member.ZeroMember
+      Member.first
 
     implicit lazy val WriterMember: Member.Aux[Writer[String, ?], Stack, Reader[Int, ?] |: Eval |: NoEffect] =
-      Member.SuccessorMember
+      Member.successor
 
     implicit lazy val EvalMember: Member.Aux[Eval, Stack, Reader[Int, ?] |: Writer[String, ?] |: NoEffect] =
-      Member.SuccessorMember
-
+      Member.successor
   }
 
 }

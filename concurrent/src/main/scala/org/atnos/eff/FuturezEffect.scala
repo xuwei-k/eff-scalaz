@@ -26,7 +26,7 @@ trait FuturezCreation {
 
 trait FuturezInterpretation {
 
-  def attemptFuture[R <: Effects, U <: Effects, A](r: Eff[R, A])(atMost: Duration)
+  def attemptFuture[R, U, A](r: Eff[R, A])(atMost: Duration)
       (implicit m: Member.Aux[Future, R, U]): Eff[U, Throwable \/ A] = {
     val recurse = new Recurse[Future, U, Throwable \/ A] {
       def apply[X](m: Future[X]) =

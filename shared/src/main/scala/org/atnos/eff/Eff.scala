@@ -182,7 +182,7 @@ trait EffInterpretation {
    * An Eff[R, A] value can be transformed into an Eff[U, A]
    * value provided that all the effects in R are also in U
    */
-  def effInto[R <: Effects, U, A](e: Eff[R, A])(implicit f: IntoPoly[R, U, A]): Eff[U, A] =
+  def effInto[R, U, A](e: Eff[R, A])(implicit f: IntoPoly[R, U, A]): Eff[U, A] =
     f(e)
 }
 
@@ -204,7 +204,7 @@ object EffInterpretation extends EffInterpretation
  *    there should be at least something producing a value of type A
  *
  */
-trait IntoPoly[R <: Effects, U, A] {
+trait IntoPoly[R, U, A] {
   def apply(e: Eff[R, A]): Eff[U, A]
 }
 
@@ -224,13 +224,37 @@ object IntoPoly extends IntoPolyLower {
               case -\/(u1) => sys.error("impossible")
             }
 
-          case ap @ ImpureAp(_,_) => apply(ap.toMonadic)
+          case ap @ ImpureAp(u,c) =>
+            decompose(u) match {
+              case \/-(mx) =>
+                ImpureAp[U, u.X, A](mu.inject(mx), Apps[U, u.X, A](c.functions.map(f => effInto[M |: NoEffect, U, Any => Any](f))))
+              case -\/(u1) => sys.error("impossible")
+            }
         }
       }
     }
+
+
+  implicit def intoOne[M[_], R, A]: IntoPoly[R, M |: R, A] =
+    new IntoPoly[R, M |: R, A] {
+      def apply(e: Eff[R, A]): Eff[M |: R, A] = {
+        e match {
+          case Pure(a) =>
+            EffMonad[M |: R].pure(a)
+
+          case Impure(u, c) =>
+            Impure[M |: R, u.X, A](UnionNext(u), Arrs.singleton(x => effInto[R, M |: R, A](c(x))))
+
+          case ap @ ImpureAp(u, c) =>
+            ImpureAp[M |: R, u.X, A](UnionNext(u),
+              Apps[M |: R, u.X, A](c.functions.map(f => effInto[R, M |: R, Any => Any](f))))
+        }
+      }
+    }
+  
 }
 trait IntoPolyLower {
-  implicit def intoEff[M[_], R <: Effects, U, A](implicit m: Member[M, M |: R], mu: Member[M, U], recurse: IntoPoly[R, U, A]): IntoPoly[M |: R, U, A] =
+  implicit def intoEff[M[_], R, U, A](implicit m: Member[M, M |: R], mu: Member[M, U], recurse: IntoPoly[R, U, A]): IntoPoly[M |: R, U, A] =
     new IntoPoly[M |: R, U, A] {
       def apply(e: Eff[M |: R, A]): Eff[U, A] = {
 
@@ -244,9 +268,15 @@ trait IntoPolyLower {
               case -\/(u1) => recurse(impure[R, u1.X, A](u1, c.asInstanceOf[Arrs[R, u1.X, A]]))
             }
 
-          case ap @ ImpureAp(_,_) =>
-            apply(ap.toMonadic)
+          case ap @ ImpureAp(u, c) =>
+            decompose(u) match {
+              case \/-(mx) =>
+                ImpureAp[U, u.X, A](mu.inject(mx),
+                  Apps[U, u.X, A](c.functions.map(f => effInto[M |: R, U, Any => Any](f)(intoEff(m, mu, recurse.asInstanceOf[IntoPoly[R, U, Any => Any]])))))
 
+              case -\/(u1) =>
+                recurse(ImpureAp[R, u1.X, A](u1, c.asInstanceOf[Apps[R, u1.X, A]]))
+            }
         }
       }
     }
@@ -330,7 +360,7 @@ object Arrs {
 }
 
 /**
- * Sequence of applicative functions from A to B: Eff[A => B]
+ * Sequence of applicative functions from A to B: Eff[R, A => B]
  *
  */
 case class Apps[R, A, B](functions: Vector[Eff[R, Any => Any]]) {

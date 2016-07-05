@@ -32,13 +32,15 @@ trait ChooseEffect extends
 object ChooseEffect extends ChooseEffect
 
 trait ChooseCreation {
-  def zero[R, A](implicit m: Choose <= R): Eff[R, A] =
+  type _Choose[R] = Choose <= R
+  
+  def zero[R :_Choose, A]: Eff[R, A] =
     send[Choose, R, A](ChooseZero[A]())
 
-  def plus[R, A](a1: Eff[R, A], a2: Eff[R, A])(implicit m: Choose <= R): Eff[R, A] =
+  def plus[R :_Choose, A](a1: Eff[R, A], a2: Eff[R, A]): Eff[R, A] =
     EffMonad[R].bind(send(ChoosePlus))((b: Boolean) => if (b) a1 else a2)
 
-  def chooseFrom[R, A](as: List[A])(implicit m: Choose <= R): Eff[R, A] =
+  def chooseFrom[R :_Choose, A](as: List[A]): Eff[R, A] =
     as match {
       case Nil => send[Choose, R, A](ChooseZero[A]())
       case a :: rest => plus(EffMonad[R].point(a), chooseFrom(rest))
@@ -48,7 +50,7 @@ trait ChooseCreation {
 object ChooseCreation extends ChooseCreation
 
 trait ChooseInterpretation {
-  def runChoose[R <: Effects, U <: Effects, A, F[_] : MonadPlus](r: Eff[R, A])(implicit m: Member.Aux[Choose, R, U]): Eff[U, F[A]] = {
+  def runChoose[R, U, A, F[_] : MonadPlus](r: Eff[R, A])(implicit m: Member.Aux[Choose, R, U]): Eff[U, F[A]] = {
     r match {
       case Pure(a) =>
         EffMonad[U].point(MonadPlus[F].point(a))

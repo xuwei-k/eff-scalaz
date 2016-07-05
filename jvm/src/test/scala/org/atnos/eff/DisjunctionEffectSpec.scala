@@ -16,6 +16,7 @@ class DisjunctionEffectSpec extends Specification with ScalaCheck { def is = s2"
  run is stack safe with Disjunction                   $stacksafeRun
  a left value can be caught and transformed to a right value $leftToRight
 
+the left type can be modified with local     $local
 """
 
   def disjunctionMonad = {
@@ -89,6 +90,23 @@ class DisjunctionEffectSpec extends Specification with ScalaCheck { def is = s2"
     }
 
     action.runDisjunction.run ==== \/.right(7)
+  }
+
+  def local = {
+    case class Error1(m: String)
+
+    case class Error2(e1: Error1)
+
+    type R1 = (Error1 \/ ?) |: NoEffect
+    type R2 = (Error2 \/ ?) |: NoEffect
+
+    val action1: Eff[R1, Unit] =
+      DisjunctionEffect.left(Error1("boom"))
+
+    val action2: Eff[R2, Unit] =
+      action1.localDisjunction(Error2)
+
+    action2.runDisjunction.run ==== \/.left(Error2(Error1("boom")))
   }
 }
 

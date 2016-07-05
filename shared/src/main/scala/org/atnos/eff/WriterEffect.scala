@@ -24,7 +24,7 @@ object WriterEffect extends WriterEffect
 trait WriterCreation {
 
   /** write a given value */
-  def tell[R, O](o: O)(implicit member: Member[Writer[O, ?], R]): Eff[R, Unit] =
+  def tell[R, O](o: O)(implicit member: Writer[O, ?] <= R): Eff[R, Unit] =
     send[Writer[O, ?], R, Unit](Writer(o, ()))
 
 }
@@ -38,13 +38,13 @@ trait WriterInterpretation {
    *
    * This uses a ListBuffer internally to append values
    */
-  def runWriter[R <: Effects, U <: Effects, O, A, B](w: Eff[R, A])(implicit m: Member.Aux[Writer[O, ?], R, U]): Eff[U, (A, List[O])] =
+  def runWriter[R, U, O, A, B](w: Eff[R, A])(implicit m: Member.Aux[Writer[O, ?], R, U]): Eff[U, (A, List[O])] =
     runWriterFold(w)(ListFold)
 
   /**
    * More general fold of runWriter where we can use a fold to accumulate values in a mutable buffer
    */
-  def runWriterFold[R <: Effects, U <: Effects, O, A, B](w: Eff[R, A])(fold: Fold[O, B])(implicit m: Member.Aux[Writer[O, ?], R, U]): Eff[U, (A, B)] = {
+  def runWriterFold[R, U, O, A, B](w: Eff[R, A])(fold: Fold[O, B])(implicit m: Member.Aux[Writer[O, ?], R, U]): Eff[U, (A, B)] = {
     val recurse: StateRecurse[Writer[O, ?], A, (A, B)] = new StateRecurse[Writer[O, ?], A, (A, B)] {
       type S = fold.S
       val init = fold.init
@@ -54,6 +54,12 @@ trait WriterInterpretation {
 
     interpretState1[R, U, Writer[O, ?], A, (A, B)]((a: A) => (a, fold.finalize(fold.init)))(recurse)(w)
   }
+
+  /**
+   * Run a side-effecting fold
+   */
+  def runWriterUnsafe[R, U, O, A](w: Eff[R, A])(fold: Fold[O, Unit])(implicit m: Member.Aux[Writer[O, ?], R, U]): Eff[U, A] =
+    runWriterFold(w)(fold).map(_._1)
 
   implicit def ListFold[A]: Fold[A, List[A]] = new Fold[A, List[A]] {
     type S = ListBuffer[A]
@@ -68,6 +74,14 @@ trait WriterInterpretation {
     def fold(a: A, s: S) = a |+| s
     def finalize(s: S) = s
   }
+
+  def UnsafeFold[A](f: A => Unit): Fold[A, Unit] = new Fold[A, Unit] {
+    type S = Unit
+    val init = ()
+    def fold(a: A, s: S) = f(a)
+    def finalize(s: S) = s
+  }
+
 }
 
 /** support trait for folding values while possibly keeping some internal state */

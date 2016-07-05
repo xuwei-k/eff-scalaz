@@ -40,7 +40,7 @@ trait Interpret {
   /**
    * interpret the effect M in the M |: R stack
    */
-  def interpret[R <: Effects, U <: Effects, M[_], A, B](pure: A => Eff[U, B], recurse: Recurse[M, U, B])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] = {
+  def interpret[R, U, M[_], A, B](pure: A => Eff[U, B], recurse: Recurse[M, U, B])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] = {
     val loop = new Loop[M, R, A, Eff[U, B]] {
       type S = Unit
       val init = ()
@@ -57,7 +57,7 @@ trait Interpret {
   /**
    * simpler version of interpret where the pure value is just mapped to another type
    */
-  def interpret1[R <: Effects, U <: Effects, M[_], A, B](pure: A => B)(recurse: Recurse[M, U, B])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] =
+  def interpret1[R, U, M[_], A, B](pure: A => B)(recurse: Recurse[M, U, B])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] =
     interpret[R, U, M, A, B]((a: A) => EffMonad[U].point(pure(a)), recurse)(effects)
 
   /**
@@ -80,7 +80,7 @@ trait Interpret {
   /**
    * interpret the effect M in the M |: R stack, keeping track of some state
    */
-  def interpretState[R <: Effects, U <: Effects, M[_], A, B](pure: A => Eff[U, B], recurse: StateRecurse[M, A, B])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] = {
+  def interpretState[R, U, M[_], A, B](pure: A => Eff[U, B], recurse: StateRecurse[M, A, B])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] = {
     val loop = new Loop[M, R, A, Eff[U, B]] {
       type S = recurse.S
       val init: S = recurse.init
@@ -97,13 +97,13 @@ trait Interpret {
   /**
    * simpler version of interpret1 where the pure value is just mapped to another type
    */
-  def interpretState1[R <: Effects, U <: Effects, M[_], A, B](pure: A => B)(recurse: StateRecurse[M, A, B])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] =
+  def interpretState1[R, U, M[_], A, B](pure: A => B)(recurse: StateRecurse[M, A, B])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] =
     interpretState((a: A) => EffMonad[U].point(pure(a)), recurse)(effects)
 
   /**
    * Generalisation of Recurse and StateRecurse
    */
-  trait Loop[M[_], R <: Effects, A, B] {
+  trait Loop[M[_], R, A, B] {
     type S
     val init: S
     def onPure(a: A, s: S): (Eff[R, A], S) \/ B
@@ -115,7 +115,7 @@ trait Interpret {
    *
    * This method contains a loop which is stack-safe
    */
-  def interpretLoop[R <: Effects, U <: Effects, M[_], A, B, S](pure: A => Eff[U, B], loop: Loop[M, R, A, Eff[U, B]])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] = {
+  def interpretLoop[R, U, M[_], A, B, S](pure: A => Eff[U, B], loop: Loop[M, R, A, Eff[U, B]])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] = {
     def go(eff: Eff[R, A], s: loop.S): Eff[U, B] = {
       eff match {
         case Pure(a) =>
@@ -144,13 +144,13 @@ trait Interpret {
     go(effects, loop.init)
   }
 
-  def interpretLoop1[R <: Effects, U <: Effects, M[_], A, B, S](pure: A => B)(loop: Loop[M, R, A, Eff[U, B]])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] =
+  def interpretLoop1[R, U, M[_], A, B, S](pure: A => B)(loop: Loop[M, R, A, Eff[U, B]])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] =
     interpretLoop[R, U, M, A, B, S]((a: A) => EffMonad[U].point(pure(a)), loop)(effects)
 
   /**
    * INTERPRET IN THE SAME STACK
    */
-  def intercept[R <: Effects, M[_], A, B](pure: A => Eff[R, B], recurse: Recurse[M, R, B])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] = {
+  def intercept[R, M[_], A, B](pure: A => Eff[R, B], recurse: Recurse[M, R, B])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] = {
     val loop = new Loop[M, R, A, Eff[R, B]] {
       type S = Unit
       val init = ()
@@ -167,14 +167,14 @@ trait Interpret {
   /**
    * simpler version of intercept where the pure value is just mapped to another type
    */
-  def intercept1[R <: Effects, M[_], A, B](pure: A => B)(recurse: Recurse[M, R, B])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] =
+  def intercept1[R, M[_], A, B](pure: A => B)(recurse: Recurse[M, R, B])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] =
     intercept[R, M, A, B]((a: A) => EffMonad[R].point(pure(a)), recurse)(effects)
 
   /**
    * intercept an effect and interpret it in the same stack.
    * This method is stack-safe
    */
-  def interceptLoop[R <: Effects, M[_], A, B, S](pure: A => Eff[R, B], loop: Loop[M, R, A, Eff[R, B]])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] = {
+  def interceptLoop[R, M[_], A, B, S](pure: A => Eff[R, B], loop: Loop[M, R, A, Eff[R, B]])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] = {
     def go(eff: Eff[R, A], s: loop.S): Eff[R, B] = {
       eff match {
         case Pure(a) =>
@@ -203,7 +203,7 @@ trait Interpret {
     go(effects, loop.init)
   }
 
-  def interceptLoop1[R <: Effects, M[_], A, B, S](pure: A => B)(loop: Loop[M, R, A, Eff[R, B]])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] =
+  def interceptLoop1[R, M[_], A, B, S](pure: A => B)(loop: Loop[M, R, A, Eff[R, B]])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] =
     interceptLoop[R, M, A, B, S]((a: A) => EffMonad[R].point(pure(a)), loop)(effects)
 
   /**
@@ -232,6 +232,56 @@ trait Interpret {
     }
 
     go(r)
+  }
+
+  /**
+   * trait for translating one effect into other ones in the same stack
+   */
+  trait Translate[T[_], U] {
+    def apply[X](kv: T[X]): Eff[U, X]
+  }
+
+  /**
+   * Translate one effect of the stack into some of the other effects in the stack
+   */
+  def translate[R, U, T[_], A](effects: Eff[R, A])
+                                                    (tr: Translate[T, U])
+                                                    (implicit m: Member.Aux[T, R, U]): Eff[U, A] = {
+    def go(eff: Eff[R, A]): Eff[U, A] = {
+      eff match {
+        case Pure(a) => Pure(a)
+
+        case Impure(union, c) =>
+          m.project(union) match {
+            case \/-(kv) =>
+              val effectsU: Eff[U, union.X] = tr(kv)
+              effectsU.flatMap(r => go(c(r)))
+
+            case -\/(u1) =>
+              Impure(u1, Arrs.singleton((x: union.X) => go(c(x))))
+          }
+
+        case ap @ ImpureAp(_,_) =>
+          go(ap.toMonadic)
+      }
+    }
+
+    go(effects)
+  }
+
+  trait SideEffect[T[_]] {
+    def apply[X](tx: T[X]): X
+  }
+
+  /** interpret an effect by running side-effects */
+  def interpretUnsafe[R, U, T[_], A](effects: Eff[R, A])
+                                                          (sideEffect: SideEffect[T])
+                                                          (implicit m: Member.Aux[T, R, U]): Eff[U, A] = {
+    val recurse = new Recurse[T, m.Out, A] {
+      def apply[X](tx: T[X]): X \/ Eff[m.Out, A] =
+        \/.left(sideEffect(tx))
+    }
+    interpret1((a: A) => a)(recurse)(effects)(m)
   }
 }
 

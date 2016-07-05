@@ -6,6 +6,7 @@ import org.specs2.{ScalaCheck, Specification}
 import scalaz._, Scalaz._
 import org.atnos.eff.all._
 import org.atnos.eff.syntax.all._
+import org.atnos.eff.Interpret.Translate
 
 class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
@@ -25,6 +26,14 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
  It is possible to run a Eff value with just one effect and get it back $oneEffect
 
  Eff values can be traversed with an applicative instance $traverseEff
+
+ A stack can be added a new effect when the effect is not in stack $notInStack
+ A stack can be added a new effect when the effect is not in stack $inStack
+
+
+ An effect of the stack can be transformed into another one                $transformEffect
+ An effect of the stack can be translated into other effects on that stack $translateEffect
+ An effect of the stack can be locally translated into other effects on that stack $translateEffectLocal
 
 """
 
@@ -132,6 +141,100 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
       List(1, 2, 3).traverseA(i => OptionEffect.some(i))
 
     traversed.runOption.run === Option(List(1, 2, 3))
+  }
+
+  def functionReader[R, A, B](f: A => Eff[R, B]): Eff[Reader[A, ?] |: R, B] =
+    ask[Reader[A, ?] |: R, A].flatMap(f(_).into[Reader[A, ?] |: R])
+
+  def notInStack = {
+
+    type S = Option |: NoEffect
+
+    val a: Eff[S, Int] = OptionEffect.some(1)
+
+    val b: Eff[Reader[String, ?] |: S, Int] = functionReader((s: String) => a.map(_ + s.size))
+
+    b.runReader("start").runOption.run ==== Option(6)
+  }
+
+  def inStack = {
+
+    type S = Reader[String, ?] |: Option |: NoEffect
+
+    val a: Eff[S, Int] = OptionEffect.some(1)
+
+    val b: Eff[Reader[String, ?] |: S, Int] = functionReader((s: String) => a.map(_ + s.size))
+
+    b.runReader("start").runReader("start2").runOption.run ==== Option(6)
+
+  }
+
+  def transformEffect = {
+    type S = Reader[String, ?] |: Option |: NoEffect
+    type S2 = State[String, ?] |: Option |: NoEffect
+
+    def readSize[R](implicit m: Member[Reader[String, ?], R]): Eff[R, Int] =
+      ReaderEffect.ask.map(_.size)
+
+    def setString[R](implicit m: Member[State[String, ?], R]): Eff[R, Unit] =
+      StateEffect.put("hello")
+
+    val readerToState = new NaturalTransformation[Reader[String, ?], State[String, ?]] {
+      def apply[A](fa: Reader[String, A]): State[String, A] =
+        State((s: String) => (s, fa.run(s)))
+    }
+
+    def both: Eff[S2, Int] = for {
+      _ <- setString[S2]
+      s <- readSize[S].transform(readerToState)
+    } yield s
+
+    both.runState("universe").runOption.run ==== Option((5, "hello"))
+  }
+
+  def translateEffect = {
+    type S = Reader[String, ?] |: State[String, ?] |: Option |: NoEffect
+    type S2 = State[String, ?] |: Option |: NoEffect
+
+    def readSize[R](implicit m: Member[Reader[String, ?], R]): Eff[R, Int] =
+      ReaderEffect.ask.map(_.size)
+
+    val readerToStateTranslation = new Interpret.Translate[Reader[String, ?], S2] {
+      def apply[A](fa: Reader[String, A]): Eff[S2, A] =
+        Eff.send(State((s: String) => (s, fa.run(s))))
+    }
+
+    implicit val m: Member.Aux[Reader[String, ?], S, S2] = Member.first
+
+    readSize.translate(readerToStateTranslation).runState("hello").runOption.run ==== Option((5, "hello"))
+  }
+
+  def translateEffectLocal = {
+    type S2 = State[String, ?] |: Option |: NoEffect
+
+    def readSize[R](implicit m: Member[Reader[String, ?], R]): Eff[R, Int] =
+      ReaderEffect.ask.map(_.size)
+
+    def setString[R](implicit m: Member[State[String, ?], R]): Eff[R, Unit] =
+      StateEffect.put("hello")
+
+    def readerToState[R](implicit s: State[String, ?] <= R): Translate[Reader[String, ?], R] = new Translate[Reader[String, ?], R] {
+      def apply[A](fa: Reader[String, A]): Eff[R, A] =
+        send(State((s: String) => (s, fa.run(s))))
+    }
+
+    def both[R](implicit s: State[String, ?] <= R): Eff[R, Int] = {
+      type R1 = Reader[String, ?] |: R
+
+      val action: Eff[R1, Int] = for {
+        _ <- setString[R1]
+        s <- readSize[R1]
+      } yield s
+
+      action.translate(readerToState)
+    }
+
+    both[S2].runState("universe").runOption.run ==== Option((5, "hello"))
   }
 
   /**

@@ -9,9 +9,9 @@ object task extends task
 
 trait task {
 
-  implicit class TaskEffectOps[R <: Effects, A](e: Eff[R, A]) {
+  implicit class TaskEffectOps[R, A](e: Eff[R, A]) {
 
-    def attemptTask[U <: Effects](atMost: Duration)
+    def attemptTask[U](atMost: Duration)
       (implicit member: Member.Aux[Task, R, U]): Eff[U, Throwable \/ A] =
       TaskInterpretation.attemptTask(e)(atMost)
 

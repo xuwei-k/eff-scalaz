@@ -19,19 +19,19 @@ object StateEffect extends StateEffect
 trait StateCreation {
 
   /** store a new state value */
-  def put[R, S](s: S)(implicit member: Member[State[S, ?], R]): Eff[R, Unit] =
+  def put[R, S](s: S)(implicit member: State[S, ?] <= R): Eff[R, Unit] =
     send[State[S, ?], R, Unit](State.put(s))
 
   /** get the current state value */
-  def get[R, S](implicit member: Member[State[S, ?], R]): Eff[R, S] =
+  def get[R, S](implicit member: State[S, ?] <= R): Eff[R, S] =
     send[State[S, ?], R, S](State.get)
 
   /** get the current state value and map it with a function f */
-  def gets[R, S, T](f: S => T)(implicit member: Member[State[S, ?], R]): Eff[R, T] =
+  def gets[R, S, T](f: S => T)(implicit member: State[S, ?] <= R): Eff[R, T] =
     send[State[S, ?], R, T](State.gets(f))
 
   /** modify the current state value */
-  def modify[R, S](f: S => S)(implicit member: Member[State[S, ?], R]): Eff[R, Unit] =
+  def modify[R, S](f: S => S)(implicit member: State[S, ?] <= R): Eff[R, Unit] =
     get >>= ((s: S) => put(f(s)))
 
 }
@@ -40,27 +40,27 @@ object StateCreation extends StateCreation
 
 trait StateInterpretation {
   /** run a state effect, with a Monoidal state */
-  def evalStateZero[R <: Effects, U <: Effects, S : Monoid, A](w: Eff[R, A])(implicit m: Member.Aux[State[S, ?], R, U]): Eff[U, A] =
+  def evalStateZero[R, U, S : Monoid, A](w: Eff[R, A])(implicit m: Member.Aux[State[S, ?], R, U]): Eff[U, A] =
     evalState(Monoid[S].zero)(w)
 
   /** run a state effect, with an initial value, return only the value */
-  def evalState[R <: Effects, U <: Effects, S, A](initial: S)(w: Eff[R, A])(implicit m: Member.Aux[State[S, ?], R, U]): Eff[U, A] =
+  def evalState[R, U, S, A](initial: S)(w: Eff[R, A])(implicit m: Member.Aux[State[S, ?], R, U]): Eff[U, A] =
     runState(initial)(w).map(_._1)
 
   /** run a state effect, with a monoidal state, return only the state */
-  def execStateZero[R <: Effects, U <: Effects, S : Monoid, A](w: Eff[R, A])(implicit m: Member.Aux[State[S, ?], R, U]): Eff[U, S] =
+  def execStateZero[R, U, S : Monoid, A](w: Eff[R, A])(implicit m: Member.Aux[State[S, ?], R, U]): Eff[U, S] =
     execState(Monoid[S].zero)(w)
 
   /** run a state effect, with an initial value, return only the state */
-  def execState[R <: Effects, U <: Effects, S, A](initial: S)(w: Eff[R, A])(implicit m: Member.Aux[State[S, ?], R, U]): Eff[U, S] =
+  def execState[R, U, S, A](initial: S)(w: Eff[R, A])(implicit m: Member.Aux[State[S, ?], R, U]): Eff[U, S] =
     runState(initial)(w).map(_._2)
 
   /** run a state effect, with an initial value */
-  def runStateZero[R <: Effects, U <: Effects, S : Monoid, A](w: Eff[R, A])(implicit m: Member.Aux[State[S, ?], R, U]): Eff[U, (A, S)] =
+  def runStateZero[R, U, S : Monoid, A](w: Eff[R, A])(implicit m: Member.Aux[State[S, ?], R, U]): Eff[U, (A, S)] =
     runState(Monoid[S].zero)(w)
 
   /** run a state effect, with an initial value */
-  def runState[R <: Effects, U <: Effects, S1, A](initial: S1)(w: Eff[R, A])(implicit m: Member.Aux[State[S1, ?], R, U]): Eff[U, (A, S1)] = {
+  def runState[R, U, S1, A](initial: S1)(w: Eff[R, A])(implicit m: Member.Aux[State[S1, ?], R, U]): Eff[U, (A, S1)] = {
     val recurse: StateRecurse[State[S1, ?], A, (A, S1)] = new StateRecurse[State[S1, ?], A, (A, S1)] {
       type S = S1
       val init = initial

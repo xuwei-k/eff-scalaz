@@ -17,12 +17,12 @@ object ReaderEffect extends ReaderEffect
 
 trait ReaderCreation {
   /** get the environment */
-  def ask[R, T](implicit member: Member[Reader[T, ?], R]): Eff[R, T] =
+  def ask[R, T](implicit member: Reader[T, ?] <= R): Eff[R, T] =
     local[R, T, T](identity)
 
   /** get the environment */
   /** modify the environment */
-  def local[R, T, U](f: T => U)(implicit member: Member[Reader[T, ?], R]): Eff[R, U] =
+  def local[R, T, U](f: T => U)(implicit member: Reader[T, ?] <= R): Eff[R, U] =
     send[Reader[T, ?], R, U](Reader(f))
 
 }
@@ -31,7 +31,7 @@ object ReaderCreation extends ReaderCreation
 
 trait ReaderInterpretation {
   /** interpret the Reader effect by providing an environment when required */
-  def runReader[R <: Effects, U <: Effects, A, B](env: A)(r: Eff[R, B])(implicit m: Member.Aux[Reader[A, ?], R, U]): Eff[U, B] = {
+  def runReader[R, U, A, B](env: A)(r: Eff[R, B])(implicit m: Member.Aux[Reader[A, ?], R, U]): Eff[U, B] = {
     val recurse = new Recurse[Reader[A, ?], U, B] {
       def apply[X](m: Reader[A, X]) = -\/(m.run(env))
     }

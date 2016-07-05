@@ -22,6 +22,8 @@ trait ErrorEffect[F] extends
 
 trait ErrorTypes[F] {
 
+  type _ErrorOrOk[R] = ErrorOrOk <= R
+  
   /** type of errors: exceptions or failure messages */
   type Error = Throwable \/ F
 
@@ -34,23 +36,23 @@ trait ErrorTypes[F] {
 
 trait ErrorCreation[F] extends ErrorTypes[F] {
   /** create an Eff value from a computation */
-  def ok[R, A](a: => A)(implicit m: ErrorOrOk <= R): Eff[R, A] =
+  def ok[R :_ErrorOrOk, A](a: => A): Eff[R, A] =
     send[ErrorOrOk, R, A](\/.right(Need(a)))
 
   /** create an Eff value from a computation */
-  def eval[R, A](a: Eval[A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
+  def eval[R :_ErrorOrOk, A](a: Eval[A]): Eff[R, A] =
     send[ErrorOrOk, R, A](\/.right(a))
 
   /** create an Eff value from an error */
-  def error[R, A](error: Error)(implicit m: ErrorOrOk <= R): Eff[R, A] =
+  def error[R :_ErrorOrOk, A](error: Error): Eff[R, A] =
     send[ErrorOrOk, R, A](\/.left(error))
 
   /** create an Eff value from a failure */
-  def fail[R, A](failure: F)(implicit m: ErrorOrOk <= R): Eff[R, A] =
+  def fail[R :_ErrorOrOk, A](failure: F): Eff[R, A] =
     error(\/.right(failure))
 
   /** create an Eff value from an exception */
-  def exception[R, A](t: Throwable)(implicit m: ErrorOrOk <= R): Eff[R, A] =
+  def exception[R :_ErrorOrOk, A](t: Throwable): Eff[R, A] =
     error(\/.left(t))
 }
 
@@ -62,7 +64,7 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] {
    *
    * Stop all computation if there is an exception or a failure.
    */
-  def runError[R <: Effects, U <: Effects, A](r: Eff[R, A])(implicit m: Member.Aux[ErrorOrOk, R, U]): Eff[U, Error \/ A] = {
+  def runError[R, U, A](r: Eff[R, A])(implicit m: Member.Aux[ErrorOrOk, R, U]): Eff[U, Error \/ A] = {
     val recurse = new Recurse[ErrorOrOk, U, Error \/ A] {
       def apply[X](m: ErrorOrOk[X]) =
         m match {
@@ -85,7 +87,7 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] {
    *
    * Execute a second action whether the first is successful or not
    */
-  def andFinally[R <: Effects, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] = {
+  def andFinally[R :_ErrorOrOk, A](action: Eff[R, A], last: Eff[R, Unit]): Eff[R, A] = {
     val recurse = new Recurse[ErrorOrOk, R, A] {
       def apply[X](current: ErrorOrOk[X]): X \/ Eff[R, A] =
         current match {
@@ -105,7 +107,7 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] {
    *
    * Execute a second action if the first one is not successful
    */
-  def orElse[R <: Effects, A](action: Eff[R, A], onError: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
+  def orElse[R :_ErrorOrOk, A](action: Eff[R, A], onError: Eff[R, A]): Eff[R, A] =
     whenFailed(action, _ => onError)
 
   /**
@@ -113,7 +115,7 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] {
    *
    * Execute a second action if the first one is not successful, based on the error
    */
-  def catchError[R <: Effects, A, B](action: Eff[R, A], pure: A => B, onError: Error => Eff[R, B])(implicit m: ErrorOrOk <= R): Eff[R, B] = {
+  def catchError[R :_ErrorOrOk, A, B](action: Eff[R, A], pure: A => B, onError: Error => Eff[R, B]): Eff[R, B] = {
     val recurse = new Recurse[ErrorOrOk, R, B] {
       def apply[X](current: ErrorOrOk[X]): X \/ Eff[R, B] =
         current match {
@@ -135,13 +137,13 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] {
    *
    * The final value type is the same as the original type
    */
-  def whenFailed[R <: Effects, A](action: Eff[R, A], onError: Error => Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
+  def whenFailed[R :_ErrorOrOk, A](action: Eff[R, A], onError: Error => Eff[R, A]): Eff[R, A] =
     catchError(action, identity[A], onError)
 
   /**
    * ignore one possible exception that could be thrown
    */
-  def ignoreException[R <: Effects, E <: Throwable : ClassTag, A](action: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, Unit] =
+  def ignoreException[R :_ErrorOrOk, E <: Throwable : ClassTag, A](action: Eff[R, A]): Eff[R, Unit] =
     catchError[R, A, Unit](action, (a: A) => (), { error: Error =>
       error match {
         case -\/(t) if implicitly[ClassTag[E]].runtimeClass.isInstance(t) =>
@@ -149,6 +151,20 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] {
         case other => outer.error(other)
       }
     })
+
+  /**
+   * Lift a computation over a "small" error (for a subsystem) into
+   * a computation over a "bigger" error (for the full application)
+   */
+  def localError[SR, BR, U, E1, E2, A](r: Eff[SR, A], getter: E1 => E2)
+                                      (implicit sr: Member.Aux[({type l[X]=(Throwable \/ E1) \/ Eval[X]})#l, SR, U],
+                                       br: Member.Aux[({type l[X]=(Throwable \/ E2) \/ Eval[X]})#l, BR, U]): Eff[BR, A] =
+  transform[SR, BR, U, ({type l[X]=(Throwable \/ E1) \/ Eval[X]})#l, ({type l[X]=(Throwable \/ E2) \/ Eval[X]})#l, A](r,
+    new ~>[({type l[X]=(Throwable \/ E1) \/ Eval[X]})#l, ({type l[X]=(Throwable \/ E2) \/ Eval[X]})#l] {
+      def apply[X](r: (Throwable \/ E1) \/ Eval[X]): (Throwable \/ E2) \/ Eval[X] =
+        r.leftMap(_.map(getter))
+    })
+
 }
 
 

@@ -11,12 +11,15 @@ object eff extends eff
 
 trait eff {
 
-  implicit class EffOps[R <: Effects, A](e: Eff[R, A]) {
+  implicit class EffOps[R, A](e: Eff[R, A]) {
     def into[U](implicit f: IntoPoly[R, U, A]): Eff[U, A] =
       Eff.effInto(e)(f)
 
     def transform[BR, U, M[_], N[_]](t: NaturalTransformation[M, N])(implicit m: Member.Aux[M, R, U], n: Member.Aux[N, BR, U]): Eff[BR, A] =
       Interpret.transform(e, t)(m, n)
+
+    def translate[U, M[_]](t: Interpret.Translate[M, U])(implicit m: Member.Aux[M, R, U]): Eff[U, A] =
+      Interpret.translate(e)(t)(m)
   }
 
   implicit class EffNoEffectOps[A](e: Eff[NoEffect, A]) {
@@ -29,7 +32,7 @@ trait eff {
       Eff.detach(e)
   }
 
-  implicit class EffMonadicOps[R <: Effects, M[_], A](e: Eff[R, M[A]]) {
+  implicit class EffMonadicOps[R, M[_], A](e: Eff[R, M[A]]) {
     def collapse(implicit m: M <= R): Eff[R, A] =
       Eff.collapse[R, M, A](e)
   }

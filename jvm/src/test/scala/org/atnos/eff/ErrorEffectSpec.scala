@@ -22,6 +22,7 @@ class ErrorEffectSpec extends Specification { def is = s2"""
 
  A thrown exception can be ignored $ignored
 
+ An action with a given failure type can be translated to an action with another failure type $local
 """
 
   type R = ErrorOrOk |: NoEffect
@@ -110,6 +111,28 @@ class ErrorEffectSpec extends Specification { def is = s2"""
 
     action2.runError.run ==== \/-(())
 
+  }
+
+  def local = {
+    case class Error1(m: String)
+    object ErrorEffect1 extends ErrorEffect[Error1]
+
+    case class Error2(e1: Error1)
+    object ErrorEffect2 extends ErrorEffect[Error2]
+
+    type R1 = ErrorEffect1.ErrorOrOk |: NoEffect
+    implicit val m1: Member.Aux[ErrorEffect1.ErrorOrOk, R1, NoEffect] = Member.first
+
+    type R2 = ErrorEffect2.ErrorOrOk |: NoEffect
+    implicit val m2: Member.Aux[ErrorEffect2.ErrorOrOk, R2, NoEffect] = Member.first
+
+    val action1: Eff[R1, Unit] =
+      ErrorEffect1.fail(Error1("boom"))
+
+    val action2: Eff[R2, Unit] =
+      ErrorEffect.localError(action1, Error2)
+
+    ErrorEffect2.runError(action2).run ==== \/.left(\/.right(Error2(Error1("boom"))))
   }
 
   /**
