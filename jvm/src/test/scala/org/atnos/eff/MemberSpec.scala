@@ -1,11 +1,17 @@
 package org.atnos.eff
 
 import scalaz._
+import Scalaz._
 import org.specs2.{ScalaCheck, Specification}
 import org.atnos.eff.all._
+import interpret._
+import syntax.all._
 import org.scalacheck._
+import org.specs2.concurrent.ExecutionEnv
 
-class MemberSpec extends Specification with ScalaCheck { def is = s2"""
+import scala.concurrent.Future
+
+class MemberSpec(implicit ee: ExecutionEnv) extends Specification with ScalaCheck { def is = s2"""
 
  inject / project must work at the value level
    for reader $reader
@@ -15,23 +21,6 @@ class MemberSpec extends Specification with ScalaCheck { def is = s2"""
  project fold (accept, inject) === identity $law
 
 """
-  type WriterString[A] = Writer[String, A]
-  type ReaderInt[A] = Reader[Int, A]
-
-  type S = WriterString |: ReaderInt |: Eval |: NoEffect
-
-  implicit def writerMember =
-    Member.aux[WriterString, S, ReaderInt |: Eval |: NoEffect]
-
-  implicit def readerMember =
-    Member.aux[ReaderInt, S, WriterString |: Eval |: NoEffect]
-
-  implicit def evalMember =
-    Member.aux[Eval, S, WriterString |: ReaderInt |: NoEffect]
-
-  val read1 = Reader((i: Int) => "hey")
-  val write1 = Writer[String, String]("hey", "hey")
-  val eval1: Eval[String] = Name("hey")
 
   def reader =
     readerMember.project(readerMember.inject(read1)).toEither must beRight(read1)
@@ -41,6 +30,27 @@ class MemberSpec extends Specification with ScalaCheck { def is = s2"""
 
   def eval =
     evalMember.project(evalMember.inject(eval1)).toEither must beRight(eval1)
+
+  /**
+   * HELPERS
+   */
+  type WriterString[A] = Writer[String, A]
+  type ReaderInt[A] = Reader[Int, A]
+
+  type S = Fx3[WriterString, ReaderInt, Eval]
+
+  def writerMember =
+    Member.Member3L[WriterString, ReaderInt, Eval]
+
+  def readerMember =
+    Member.Member3M[WriterString, ReaderInt, Eval]
+
+  def evalMember: Member.Aux[Eval, S, Fx2[WriterString, ReaderInt]] =
+    Member.Member3R[WriterString, ReaderInt, Eval]
+
+  val read1  = Reader((i: Int) => "hey")
+  val write1 = Writer[String, String]("hey", "hey")
+  val eval1  = Name("hey")
 
   trait SMember {
     type T[_]
@@ -61,7 +71,7 @@ class MemberSpec extends Specification with ScalaCheck { def is = s2"""
   def genMember[T[_]]: Gen[SMember] =
     Gen.oneOf(
       new SMember { type T[A] = WriterString[A]; val member = writerMember } ,
-      new SMember { type T[A] = Eval[A]; val member = evalMember } ,
-      new SMember { type T[A] = ReaderInt[A]; val member = readerMember })
+      new SMember { type T[A] = Eval[A];         val member = evalMember } ,
+      new SMember { type T[A] = ReaderInt[A];    val member = readerMember })
 
 }

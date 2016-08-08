@@ -10,8 +10,6 @@ import org.atnos.eff.Interpret.Translate
 
 class EffSpec extends Specification with ScalaCheck { def is = s2"""
 
- The Eff monad respects the laws            $laws
-
  run the reader monad with a pure operation $readerMonadPure
  run the reader monad with a bind operation $readerMonadBind
  run the writer monad twice                 $writerTwice
@@ -22,52 +20,49 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
  The Eff monad is stack safe with Reader                 $stacksafeReader
  The Eff monad is stack safe with both Reader and Writer $stacksafeReaderWriter
 
- It is possible to run a Eff value with no effects $noEffect
- It is possible to run a Eff value with just one effect and get it back $oneEffect
+ It is possible to run a pure Eff value $runPureValue
+ It is possible to run a Eff value with one effects $runOneEffect
+ It is possible to run a Eff value with just one effect and detach it back $detachOneEffect
 
  Eff values can be traversed with an applicative instance $traverseEff
 
  A stack can be added a new effect when the effect is not in stack $notInStack
- A stack can be added a new effect when the effect is not in stack $inStack
+ A stack can be added a new effect when the effect is in stack     $inStack
 
-
- An effect of the stack can be transformed into another one                $transformEffect
+ An effect of the stack can be transformed into another one        $transformEffect
  An effect of the stack can be translated into other effects on that stack $translateEffect
  An effect of the stack can be locally translated into other effects on that stack $translateEffectLocal
 
 """
 
-  def laws =
-    pending("wait for discipline to upgrade ScalaCheck to 0.13") // MonadTests[F].monad[Int, Int, Int].all
+  type ReaderInt[A]    = Reader[Int, A]
+  type ReaderString[A] = Reader[String, A]
+  type WriterString[A] = Writer[String, A]
+  type StateString[A]  = State[String, A]
+
+  type ReaderIntFx    = Fx.fx1[ReaderInt]
+  type ReaderStringFx = Fx.fx1[ReaderString]
+  type WriterStringFx = Fx.fx1[WriterString]
 
   def readerMonadPure = prop { (initial: Int) =>
-    type R[A] = Reader[Int, A]
-    type S = R |: NoEffect
-
-    ask[S, Int].runReader(initial).run === initial
+    ask[ReaderIntFx, Int].runReader(initial).run === initial
   }
 
   def readerMonadBind = prop { (initial: Int) =>
-    type R[A] = Reader[Int, A]
-    type S = R |: NoEffect
-
-    val read: Eff[S, Int] =
+    val read: Eff[ReaderIntFx, Int] =
       for {
-        i <- ask[S, Int]
-        j <- ask[S, Int]
+        i <- ask[ReaderIntFx, Int]
+        j <- ask[ReaderIntFx, Int]
       } yield i + j
 
     read.runReader(initial).run === initial * 2
   }
 
   def writerTwice = prop { _ : Int =>
-    type W[A] = Writer[String, A]
-    type S = W |: NoEffect
-
-    val write: Eff[S, Unit] =
+    val write: Eff[WriterStringFx, Unit] =
       for {
-        _ <- tell("hello")
-        _ <- tell("world")
+        _ <- tell[WriterStringFx, String]("hello")
+        _ <- tell[WriterStringFx, String]("world")
       } yield ()
 
     write.runWriter.run ==== (((), List("hello", "world")))
@@ -76,12 +71,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
   def readerWriter = prop { init: Int =>
 
     // define a Reader / Writer stack
-    type W[A] = Writer[String, A]
-    type R[A] = Reader[Int, A]
-    type S = W |: R |: NoEffect
-
-    object SImplicits extends MemberImplicits
-    import SImplicits._
+    type S = Fx.fx2[WriterString, ReaderInt]
 
     // create actions
     val readWrite: Eff[S, Int] =
@@ -93,138 +83,130 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
       } yield i + j
 
     // run effects
-    readWrite.runWriter.runReader(init).run must_==
-      ((init * 2, List("init="+init, "result="+(init*2))))
+    readWrite.runWriter.runReader(init).run must_== ((init * 2, List("init="+init, "result="+(init*2))))
   }.setGen(Gen.posNum[Int])
 
   def stacksafeWriter = {
-    type WriterString[A] = Writer[String, A]
-    type E = WriterString |: NoEffect
-
     val list = (1 to 5000).toList
-    val action = list.traverseU(i => WriterEffect.tell[E, String](i.toString))
+    val action = list.traverseU(i => WriterEffect.tell[WriterStringFx, String](i.toString))
 
     action.runWriter.run ==== ((list.as(()), list.map(_.toString)))
   }
 
   def stacksafeReader = {
-    type ReaderString[A] = Reader[String, A]
-    type E = ReaderString |: NoEffect
-
     val list = (1 to 5000).toList
-    val action = list.traverse(i => ReaderEffect.ask[E, String])
+    val action = list.traverse(i => ReaderEffect.ask[ReaderStringFx, String])
 
     action.runReader("h").run ==== list.as("h")
   }
 
   def stacksafeReaderWriter = {
-    type ReaderString[A] = Reader[String, A]
-    type WriterString[A] = Writer[String, A]
-
-    type E = ReaderString |: WriterString |: NoEffect
+    type S = Fx.fx2[ReaderString, WriterString]
 
     val list = (1 to 5000).toList
-    val action = list.traverse(i => ReaderEffect.ask[E, String] >>= WriterEffect.tell[E, String])
+    val action = list.traverse(i => ReaderEffect.ask[S, String] >>= WriterEffect.tell[S, String])
 
     action.runReader("h").runWriter.run ==== ((list.as(()), list.as("h")))
   }
 
-  def noEffect =
+  def runPureValue =
+    (EffMonad[Fx.fx1[Eval]].point(1).runPure === Option(1)) and
+    (delay(1).runPure === None)
+
+  def runOneEffect =
     delay(1).runEval.run === 1
 
-  def oneEffect =
+  def detachOneEffect =
     delay(1).detach.value === 1
 
   def traverseEff = {
-    type R = Option |: NoEffect
-    val traversed: Eff[R, List[Int]] =
+    val traversed: Eff[Fx.fx1[Option], List[Int]] =
       List(1, 2, 3).traverseA(i => OptionEffect.some(i))
 
     traversed.runOption.run === Option(List(1, 2, 3))
   }
 
-  def functionReader[R, A, B](f: A => Eff[R, B]): Eff[Reader[A, ?] |: R, B] =
-    ask[Reader[A, ?] |: R, A].flatMap(f(_).into[Reader[A, ?] |: R])
+  def functionReader[R, U, A, B](f: A => Eff[R, B])(implicit into: IntoPoly[R, U],
+                                                    m: MemberIn[Reader[A, ?], U]): Eff[U, B] =
+    ask[U, A].flatMap(f(_).into[U])
 
   def notInStack = {
 
-    type S = Option |: NoEffect
+    val a: Eff[Fx.fx1[Option], Int] = OptionEffect.some(1)
 
-    val a: Eff[S, Int] = OptionEffect.some(1)
-
-    val b: Eff[Reader[String, ?] |: S, Int] = functionReader((s: String) => a.map(_ + s.size))
+    val b: Eff[Fx.fx2[ReaderString, Option], Int] = functionReader((s: String) => a.map(_ + s.size))
 
     b.runReader("start").runOption.run ==== Option(6)
   }
 
   def inStack = {
 
-    type S = Reader[String, ?] |: Option |: NoEffect
+    val a: Eff[Fx.fx2[ReaderString, Option], Int] = OptionEffect.some(1)
 
-    val a: Eff[S, Int] = OptionEffect.some(1)
-
-    val b: Eff[Reader[String, ?] |: S, Int] = functionReader((s: String) => a.map(_ + s.size))
+    val b: Eff[Fx.fx3[ReaderString, ReaderString, Option], Int] = functionReader((s: String) => a.map(_ + s.size))
 
     b.runReader("start").runReader("start2").runOption.run ==== Option(6)
 
   }
 
   def transformEffect = {
-    type S = Reader[String, ?] |: Option |: NoEffect
-    type S2 = State[String, ?] |: Option |: NoEffect
-
-    def readSize[R](implicit m: Member[Reader[String, ?], R]): Eff[R, Int] =
+    def readSize[R](implicit m: ReaderString |= R): Eff[R, Int] =
       ReaderEffect.ask.map(_.size)
 
-    def setString[R](implicit m: Member[State[String, ?], R]): Eff[R, Unit] =
+    def setString[R](implicit m: StateString |= R): Eff[R, Unit] =
       StateEffect.put("hello")
 
-    val readerToState = new NaturalTransformation[Reader[String, ?], State[String, ?]] {
+    val readerToState = new NaturalTransformation[ReaderString, StateString] {
       def apply[A](fa: Reader[String, A]): State[String, A] =
         State((s: String) => (s, fa.run(s)))
     }
 
-    def both: Eff[S2, Int] = for {
-      _ <- setString[S2]
-      s <- readSize[S].transform(readerToState)
+    type S0 = Fx.fx2[ReaderString, Option]
+    type S1 = Fx.fx2[StateString, Option]
+
+    implicit val m1 = Member.Member2L[ReaderString, Option]
+    implicit val m2 = Member.Member2L[StateString, Option]
+
+    def both: Eff[S1, Int] = for {
+      _ <- setString[S1]
+      s <- readSize[S0].transform(readerToState)(m1, m2)
     } yield s
 
     both.runState("universe").runOption.run ==== Option((5, "hello"))
   }
 
   def translateEffect = {
-    type S = Reader[String, ?] |: State[String, ?] |: Option |: NoEffect
-    type S2 = State[String, ?] |: Option |: NoEffect
+    type S0 = Fx.fx3[ReaderString, StateString, Option]
+    type S1 = Fx.fx2[StateString, Option]
 
-    def readSize[R](implicit m: Member[Reader[String, ?], R]): Eff[R, Int] =
+    def readSize[R](implicit m: ReaderString |= R): Eff[R, Int] =
       ReaderEffect.ask.map(_.size)
 
-    val readerToStateTranslation = new Interpret.Translate[Reader[String, ?], S2] {
-      def apply[A](fa: Reader[String, A]): Eff[S2, A] =
+    def readerToStateTranslation[R](implicit m: StateString |= R) = new Interpret.Translate[ReaderString, R] {
+      def apply[A](fa: Reader[String, A]): Eff[R, A] =
         Eff.send(State((s: String) => (s, fa.run(s))))
     }
 
-    implicit val m: Member.Aux[Reader[String, ?], S, S2] = Member.first
+    readSize[S0].translate(readerToStateTranslation[S1]).runState("hello").runOption.run ==== Option((5, "hello"))
 
-    readSize.translate(readerToStateTranslation).runState("hello").runOption.run ==== Option((5, "hello"))
   }
 
   def translateEffectLocal = {
-    type S2 = State[String, ?] |: Option |: NoEffect
+    type S2 = Fx.fx2[StateString, Option]
 
-    def readSize[R](implicit m: Member[Reader[String, ?], R]): Eff[R, Int] =
+    def readSize[R](implicit m: ReaderString |= R): Eff[R, Int] =
       ReaderEffect.ask.map(_.size)
 
-    def setString[R](implicit m: Member[State[String, ?], R]): Eff[R, Unit] =
+    def setString[R](implicit m: StateString |= R): Eff[R, Unit] =
       StateEffect.put("hello")
 
-    def readerToState[R](implicit s: State[String, ?] <= R): Translate[Reader[String, ?], R] = new Translate[Reader[String, ?], R] {
+    def readerToState[R](implicit s: StateString |= R): Translate[ReaderString, R] = new Translate[ReaderString, R] {
       def apply[A](fa: Reader[String, A]): Eff[R, A] =
         send(State((s: String) => (s, fa.run(s))))
     }
 
-    def both[R](implicit s: State[String, ?] <= R): Eff[R, Int] = {
-      type R1 = Reader[String, ?] |: R
+    def both[R](implicit s: StateString |= R): Eff[R, Int] = {
+      type R1 = Fx.prepend[ReaderString, R]
 
       val action: Eff[R1, Int] = for {
         _ <- setString[R1]
@@ -240,7 +222,7 @@ class EffSpec extends Specification with ScalaCheck { def is = s2"""
   /**
    * Helpers
    */
-  type F[A] = Eff[Option |: NoEffect, A]
+  type F[A] = Eff[Fx.fx1[Option], A]
 
   implicit def ArbitraryEff[R]: Arbitrary[Eff[R, Int]] = Arbitrary[Eff[R, Int]] {
     Gen.oneOf(

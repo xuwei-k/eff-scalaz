@@ -3,6 +3,7 @@ package org.atnos.eff.syntax
 import scalaz._
 import org.atnos.eff._
 
+
 object validate extends validate
 
 trait validate {
@@ -16,7 +17,11 @@ trait validate {
       ValidateInterpretation.runMap(e)(map)(Semigroup[L], m.aux)
 
     def runValidationNel[E](implicit m: Member[Validate[E, ?], R]): Eff[m.Out, ValidationNel[E, A]] =
-      ValidateInterpretation.runValidateNel(e)(m.aux)
+      ValidateInterpretation.runValidationNel(e)(m.aux)
+
+    def catchWrong[E](handle: E => Eff[R, A])(implicit m: Member[Validate[E, ?], R]): Eff[R, A] =
+      ValidateInterpretation.catchWrong(e)(handle)
+
   }
 
 }

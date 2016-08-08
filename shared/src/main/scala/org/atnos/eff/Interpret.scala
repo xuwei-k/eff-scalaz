@@ -1,6 +1,7 @@
 package org.atnos.eff
 
 import scalaz._
+import \/._
 import Eff._
 
 /**
@@ -111,6 +112,14 @@ trait Interpret {
   }
 
   /**
+   * Generalisation of Recurse
+   */
+  trait StatelessLoop[M[_], R, A, B] {
+    def onPure(a: A): Eff[R, A] \/ B
+    def onEffect[X](x: M[X], continuation: Arrs[R, X, A]): Eff[R, A] \/ B
+  }
+
+  /**
    * generalization of interpret and interpretState
    *
    * This method contains a loop which is stack-safe
@@ -146,6 +155,22 @@ trait Interpret {
 
   def interpretLoop1[R, U, M[_], A, B, S](pure: A => B)(loop: Loop[M, R, A, Eff[U, B]])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] =
     interpretLoop[R, U, M, A, B, S]((a: A) => EffMonad[U].point(pure(a)), loop)(effects)
+
+  /**
+   * generalization of interpret
+   *
+   * This method contains a loop which is stack-safe
+   */
+  def interpretStatelessLoop[R, U, M[_], A, B](pure: A => Eff[U, B], loop: StatelessLoop[M, R, A, Eff[U, B]])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] =
+    interpretLoop[R, U, M, A, B, Unit](pure, new Loop[M, R, A, Eff[U, B]] {
+      type S = Unit
+      val init: S = ()
+      def onPure(a: A, s: S) = loop.onPure(a).leftMap((_, init))
+      def onEffect[X](x: M[X], continuation: Arrs[R, X, A], s: S) = loop.onEffect(x, continuation).leftMap((_, init))
+    })(effects)(m)
+
+  def interpretStatelessLoop1[R, U, M[_], A, B, S](pure: A => B)(loop: StatelessLoop[M, R, A, Eff[U, B]])(effects: Eff[R, A])(implicit m: Member.Aux[M, R, U]): Eff[U, B] =
+    interpretStatelessLoop[R, U, M, A, B]((a: A) => EffMonad[U].point(pure(a)), loop)(effects)
 
   /**
    * INTERPRET IN THE SAME STACK
@@ -205,6 +230,17 @@ trait Interpret {
 
   def interceptLoop1[R, M[_], A, B, S](pure: A => B)(loop: Loop[M, R, A, Eff[R, B]])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] =
     interceptLoop[R, M, A, B, S]((a: A) => EffMonad[R].point(pure(a)), loop)(effects)
+
+  def interceptStatelessLoop[R, M[_], A, B](pure: A => Eff[R, B], loop: StatelessLoop[M, R, A, Eff[R, B]])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] =
+    interceptLoop[R, M, A, B, Unit](pure, new Loop[M, R, A, Eff[R, B]] {
+      type S = Unit
+      val init: S = ()
+      def onPure(a: A, s: S) = loop.onPure(a).leftMap((_, ()))
+      def onEffect[X](x: M[X], continuation: Arrs[R, X, A], s: S) = loop.onEffect(x, continuation).leftMap((_, ()))
+    })(effects)(m)
+
+  def interceptStatelessLoop1[R, M[_], A, B](pure: A => B)(loop: StatelessLoop[M, R, A, Eff[R, B]])(effects: Eff[R, A])(implicit m: Member[M, R]): Eff[R, B] =
+    interceptStatelessLoop[R, M, A, B]((a: A) => EffMonad[R].point(pure(a)), loop)(effects)
 
   /**
    * transform an effect into another one
@@ -279,7 +315,7 @@ trait Interpret {
                                                           (implicit m: Member.Aux[T, R, U]): Eff[U, A] = {
     val recurse = new Recurse[T, m.Out, A] {
       def apply[X](tx: T[X]): X \/ Eff[m.Out, A] =
-        \/.left(sideEffect(tx))
+        -\/(sideEffect(tx))
     }
     interpret1((a: A) => a)(recurse)(effects)(m)
   }

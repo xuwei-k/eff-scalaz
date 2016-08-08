@@ -17,10 +17,14 @@ trait FuturezEffect extends
 object FuturezEffect extends FuturezEffect
 
 trait FuturezCreation {
-  def immediate[R, A](a: A)(implicit m: Member[Future, R]): Eff[R, A] =
+  type _Futurez[R] = Future <= R
+  type _futurez[R] = Future |= R
+
+
+  def immediate[R, A](a: A)(implicit m: Future |= R): Eff[R, A] =
     pure(a)
 
-  def delayed[R, A](a: =>A)(implicit m: Member[Future, R]): Eff[R, A] =
+  def delayed[R, A](a: =>A)(implicit m: Future |= R): Eff[R, A] =
     send(Future.delay(a))
 }
 

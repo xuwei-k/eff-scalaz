@@ -22,42 +22,44 @@ trait ErrorEffect[F] extends
 
 trait ErrorTypes[F] {
 
-  type _ErrorOrOk[R] = ErrorOrOk <= R
-  
   /** type of errors: exceptions or failure messages */
   type Error = Throwable \/ F
 
+
   /**
    * base type for this effect: either an error or a computation to evaluate
-   * scala.Name represents "by-name" value: values not yet evaluated
+   * a "by-name" value
    */
-  type ErrorOrOk[A] = Error \/ Eval[A]
+  type ErrorOrOkE[E, A] = (Throwable \/ E) \/ Eval[A]
+  type ErrorOrOk[A] = ErrorOrOkE[F, A]
+
+  type _ErrorOrOk[R] = ErrorOrOk <= R
+  type _errorOrOk[R] = ErrorOrOk |= R
 }
 
 trait ErrorCreation[F] extends ErrorTypes[F] {
   /** create an Eff value from a computation */
-  def ok[R :_ErrorOrOk, A](a: => A): Eff[R, A] =
-    send[ErrorOrOk, R, A](\/.right(Need(a)))
+  def ok[R :_errorOrOk, A](a: => A): Eff[R, A] =
+    send[ErrorOrOk, R, A](\/-(Name(a)))
 
   /** create an Eff value from a computation */
-  def eval[R :_ErrorOrOk, A](a: Eval[A]): Eff[R, A] =
-    send[ErrorOrOk, R, A](\/.right(a))
+  def eval[R :_errorOrOk , A](a: Eval[A]): Eff[R, A] =
+    send[ErrorOrOk, R, A](\/-(a))
 
   /** create an Eff value from an error */
-  def error[R :_ErrorOrOk, A](error: Error): Eff[R, A] =
-    send[ErrorOrOk, R, A](\/.left(error))
+  def error[R :_errorOrOk, A](error: Error): Eff[R, A] =
+    send[ErrorOrOk, R, A](-\/(error))
 
   /** create an Eff value from a failure */
-  def fail[R :_ErrorOrOk, A](failure: F): Eff[R, A] =
-    error(\/.right(failure))
+  def fail[R :_errorOrOk, A](failure: F): Eff[R, A] =
+    error(\/-(failure))
 
   /** create an Eff value from an exception */
-  def exception[R :_ErrorOrOk, A](t: Throwable): Eff[R, A] =
-    error(\/.left(t))
+  def exception[R :_errorOrOk, A](t: Throwable): Eff[R, A] =
+    error(-\/(t))
 }
 
-trait ErrorInterpretation[F] extends ErrorCreation[F] {
-  outer =>
+trait ErrorInterpretation[F] extends ErrorCreation[F] { outer =>
 
   /**
    * Run an error effect.
@@ -69,13 +71,11 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] {
       def apply[X](m: ErrorOrOk[X]) =
         m match {
           case -\/(e) =>
-            \/.right(EffMonad[U].point(\/.left(e)))
+            \/-(EffMonad[U].point(-\/(e)))
 
           case \/-(a) =>
-            try \/.left(a.value)
-            catch {
-              case NonFatal(t) => \/.right(EffMonad[U].point(\/.left(\/.left(t))))
-            }
+            try -\/(a.value)
+            catch { case NonFatal(t) => \/-(EffMonad[U].point(-\/(-\/(t)))) }
         }
     }
 
@@ -87,16 +87,14 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] {
    *
    * Execute a second action whether the first is successful or not
    */
-  def andFinally[R :_ErrorOrOk, A](action: Eff[R, A], last: Eff[R, Unit]): Eff[R, A] = {
+  def andFinally[R, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] = {
     val recurse = new Recurse[ErrorOrOk, R, A] {
       def apply[X](current: ErrorOrOk[X]): X \/ Eff[R, A] =
         current match {
-          case -\/(e) => \/.right(last.flatMap(_ => outer.error[R, A](e)))
+          case -\/(e) => \/-(last.flatMap(_ => outer.error[R, A](e)))
           case \/-(x) =>
-            try \/.left(x.value)
-            catch {
-              case NonFatal(t) => \/.right(last.flatMap(_ => outer.exception[R, A](t)))
-            }
+            try -\/(x.value)
+            catch { case NonFatal(t) => \/-(last.flatMap(_ => outer.exception[R, A](t))) }
         }
     }
     intercept[R, ErrorOrOk, A, A]((a: A) => last.as(a), recurse)(action)
@@ -107,7 +105,7 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] {
    *
    * Execute a second action if the first one is not successful
    */
-  def orElse[R :_ErrorOrOk, A](action: Eff[R, A], onError: Eff[R, A]): Eff[R, A] =
+  def orElse[R, A](action: Eff[R, A], onError: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
     whenFailed(action, _ => onError)
 
   /**
@@ -115,16 +113,14 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] {
    *
    * Execute a second action if the first one is not successful, based on the error
    */
-  def catchError[R :_ErrorOrOk, A, B](action: Eff[R, A], pure: A => B, onError: Error => Eff[R, B]): Eff[R, B] = {
+  def catchError[R, A, B](action: Eff[R, A], pure: A => B, onError: Error => Eff[R, B])(implicit m: ErrorOrOk <= R): Eff[R, B] = {
     val recurse = new Recurse[ErrorOrOk, R, B] {
       def apply[X](current: ErrorOrOk[X]): X \/ Eff[R, B] =
         current match {
           case -\/(e) => \/-(onError(e))
           case \/-(x) =>
             try -\/[X](x.value)
-            catch {
-              case NonFatal(t) => \/-(onError(-\/(t)))
-            }
+            catch { case NonFatal(t) => \/-(onError(-\/(t))) }
         }
     }
     intercept1[R, ErrorOrOk, A, B](pure)(recurse)(action)
@@ -137,13 +133,13 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] {
    *
    * The final value type is the same as the original type
    */
-  def whenFailed[R :_ErrorOrOk, A](action: Eff[R, A], onError: Error => Eff[R, A]): Eff[R, A] =
+  def whenFailed[R, A](action: Eff[R, A], onError: Error => Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, A] =
     catchError(action, identity[A], onError)
 
   /**
    * ignore one possible exception that could be thrown
    */
-  def ignoreException[R :_ErrorOrOk, E <: Throwable : ClassTag, A](action: Eff[R, A]): Eff[R, Unit] =
+  def ignoreException[R, E <: Throwable : ClassTag, A](action: Eff[R, A])(implicit m: ErrorOrOk <= R): Eff[R, Unit] =
     catchError[R, A, Unit](action, (a: A) => (), { error: Error =>
       error match {
         case -\/(t) if implicitly[ClassTag[E]].runtimeClass.isInstance(t) =>
@@ -157,16 +153,30 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] {
    * a computation over a "bigger" error (for the full application)
    */
   def localError[SR, BR, U, E1, E2, A](r: Eff[SR, A], getter: E1 => E2)
-                                      (implicit sr: Member.Aux[({type l[X]=(Throwable \/ E1) \/ Eval[X]})#l, SR, U],
-                                       br: Member.Aux[({type l[X]=(Throwable \/ E2) \/ Eval[X]})#l, BR, U]): Eff[BR, A] =
-  transform[SR, BR, U, ({type l[X]=(Throwable \/ E1) \/ Eval[X]})#l, ({type l[X]=(Throwable \/ E2) \/ Eval[X]})#l, A](r,
-    new ~>[({type l[X]=(Throwable \/ E1) \/ Eval[X]})#l, ({type l[X]=(Throwable \/ E2) \/ Eval[X]})#l] {
+                                     (implicit sr: Member.Aux[({type l[X]=(Throwable \/ E1) \/ Eval[X]})#l, SR, U],
+                                               br: Member.Aux[({type l[X]=(Throwable \/ E2) \/ Eval[X]})#l, BR, U]): Eff[BR, A] =
+    transform[SR, BR, U, ({type l[X]=(Throwable \/ E1) \/ Eval[X]})#l, ({type l[X]=(Throwable \/ E2) \/ Eval[X]})#l, A](r,
+      new ~>[({type l[X]=(Throwable \/ E1) \/ Eval[X]})#l, ({type l[X]=(Throwable \/ E2) \/ Eval[X]})#l] {
       def apply[X](r: (Throwable \/ E1) \/ Eval[X]): (Throwable \/ E2) \/ Eval[X] =
         r.leftMap(_.map(getter))
     })
 
-}
+  /**
+    * Translate an error effect to another one in the same stack
+    * a computation over a "bigger" error (for the full application)
+    */
+  def runLocalError[R, U, E1, E2, A](r: Eff[R, A], getter: E1 => E2)
+                                  (implicit sr: Member.Aux[ErrorOrOkE[E1, ?], R, U], br: ErrorOrOkE[E2, ?] |= U): Eff[U, A] =
+    translate[R, U, ErrorOrOkE[E1, ?], A](r) { new Translate[ErrorOrOkE[E1, ?], U] {
+      def apply[X](ex: ErrorOrOkE[E1, X]): Eff[U, X] =
+        ex match {
+          case -\/(-\/(t))  => send[ErrorOrOkE[E2, ?], U, X](-\/(-\/(t)))
+          case -\/(\/-(e1)) => send[ErrorOrOkE[E2, ?], U, X](-\/(\/-(getter(e1))))
+          case \/-(x)       => send[ErrorOrOkE[E2, ?], U, X](\/-(x))
+        }
+    }}
 
+}
 
 /**
  * Simple instantiation of the ErrorEffect trait with String as a Failure type
@@ -181,11 +191,11 @@ object ErrorEffect extends ErrorEffect[String] {
 
   def renderWithStack(t: Throwable): String =
     s"""============================================================
-        |${render(t)}
-        |------------------------------------------------------------
-        |${traceWithIndent(t, "    ")}
-        |============================================================
-        |""".stripMargin
+       |${render(t)}
+       |------------------------------------------------------------
+       |${traceWithIndent(t, "    ")}
+       |============================================================
+       |""".stripMargin
 
   def trace(t: Throwable): String =  {
     val out = new java.io.StringWriter

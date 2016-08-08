@@ -4,6 +4,7 @@ import scala.collection.mutable._
 import scalaz._, Scalaz._
 import Eff._
 import Interpret._
+import EvalEffect._
 
 /**
  * Effect for logging values alongside computations
@@ -24,7 +25,7 @@ object WriterEffect extends WriterEffect
 trait WriterCreation {
 
   /** write a given value */
-  def tell[R, O](o: O)(implicit member: Writer[O, ?] <= R): Eff[R, Unit] =
+  def tell[R, O](o: O)(implicit member: Writer[O, ?] |= R): Eff[R, Unit] =
     send[Writer[O, ?], R, Unit](Writer(o, ()))
 
 }
@@ -58,8 +59,11 @@ trait WriterInterpretation {
   /**
    * Run a side-effecting fold
    */
-  def runWriterUnsafe[R, U, O, A](w: Eff[R, A])(fold: Fold[O, Unit])(implicit m: Member.Aux[Writer[O, ?], R, U]): Eff[U, A] =
-    runWriterFold(w)(fold).map(_._1)
+  def runWriterUnsafe[R, U, O, A](w: Eff[R, A])(f: O => Unit)(implicit m: Member.Aux[Writer[O, ?], R, U]): Eff[U, A] =
+    runWriterFold(w)(UnsafeFold(f)).map(_._1)
+
+  def runWriterEval[R, U, O, A](w: Eff[R, A])(f: O => Eval[Unit])(implicit m: Member.Aux[Writer[O, ?], R, U], ev: Eval |= U): Eff[U, A] =
+    runWriterFold(w)(EvalFold(f)).flatMap { case (a, e) => send[Eval, U, Unit](e).as(a) }
 
   implicit def ListFold[A]: Fold[A, List[A]] = new Fold[A, List[A]] {
     type S = ListBuffer[A]
@@ -79,6 +83,13 @@ trait WriterInterpretation {
     type S = Unit
     val init = ()
     def fold(a: A, s: S) = f(a)
+    def finalize(s: S) = s
+  }
+
+  def EvalFold[A](f: A => Eval[Unit]): Fold[A, Eval[Unit]] = new Fold[A, Eval[Unit]] {
+    type S = Eval[Unit]
+    val init = Name(())
+    def fold(a: A, s: S) = s >> f(a)
     def finalize(s: S) = s
   }
 

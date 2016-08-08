@@ -2,7 +2,7 @@ package org.atnos.eff.syntax
 
 import scalaz._
 import org.atnos.eff._
-import EvalEffect._
+import org.atnos.eff.eval._
 
 object eval extends eval
 

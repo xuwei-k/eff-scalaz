@@ -2,7 +2,8 @@ package org.atnos.eff
 
 import org.specs2.{ScalaCheck, Specification}
 import org.scalacheck.Gen.posNum
-import scalaz._, Scalaz._
+import scalaz._
+import Scalaz._
 import Eff._
 import org.atnos.eff.all._
 import org.atnos.eff.syntax.all._
@@ -18,7 +19,7 @@ class OptionEffectSpec extends Specification with ScalaCheck { def is = s2"""
 """
 
   def optionMonad = {
-    type S = Option |: NoEffect
+    type S = Fx.fx1[Option]
 
     val option: Eff[S, String] =
       for {
@@ -30,7 +31,7 @@ class OptionEffectSpec extends Specification with ScalaCheck { def is = s2"""
   }
 
   def optionWithNothingMonad = {
-    type S = Option |: NoEffect
+    type S = Fx.fx1[Option]
 
     val option: Eff[S, String] =
       for {
@@ -44,23 +45,22 @@ class OptionEffectSpec extends Specification with ScalaCheck { def is = s2"""
   def optionReader = prop { (init: Int, someValue: Int) =>
 
     // define a Reader / Option stack
-    type R[A] = Reader[Int, A]
-    type S = Option |: R |: NoEffect
+    type S = Fx.fx2[Option, ReaderInt]
 
     // create actions
-    val readOption: Eff[S, Int] =
+    def readOption[R :_option :_readerInt]: Eff[R, Int] =
       for {
-        j <- OptionEffect.some[S, Int](someValue)
-        i <- ask[S, Int]
+        j <- OptionEffect.some(someValue)
+        i <- ask
       } yield i + j
 
     // run effects
-    readOption.runOption.runReader(init).run must_== Some(init + someValue)
+    readOption[S].runOption.runReader(init).run must_== Some(init + someValue)
   }.setGens(posNum[Int], posNum[Int])
 
 
   def stacksafeOption = {
-    type E = Option |: NoEffect
+    type E = Fx.fx1[Option]
 
     val list = (1 to 5000).toList
     val action = list.traverseU(i => OptionEffect.some(i))
@@ -68,4 +68,7 @@ class OptionEffectSpec extends Specification with ScalaCheck { def is = s2"""
     action.runOption.run ==== Some(list)
   }
 
+  type ReaderInt[A] = Reader[Int, A]
+
+  type _readerInt[R] = ReaderInt |= R
 }

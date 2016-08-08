@@ -20,16 +20,20 @@ trait TaskEffect extends
 object TaskEffect extends TaskEffect
 
 trait TaskCreation {
-  def doNow[R, A](a: A)(implicit m: Member[Task, R]): Eff[R, A] =
+
+  type _Task[R] = Task <= R
+  type _task[R] = Task |= R
+  
+  def doNow[R, A](a: A)(implicit m: Task |= R): Eff[R, A] =
     pure(a)
 
-  def doLater[R, A](a: =>A)(implicit m: Member[Task, R]): Eff[R, A] =
+  def doLater[R, A](a: =>A)(implicit m: Task |= R): Eff[R, A] =
     send(Task.delay(a))
 
-  def doFork[R, A](a: =>Task[A])(implicit m: Member[Task, R], pool: ExecutorService = Strategy.DefaultExecutorService): Eff[R, A] =
+  def doFork[R, A](a: =>Task[A])(implicit m: Task |= R, pool: ExecutorService = Strategy.DefaultExecutorService): Eff[R, A] =
     send(Task.fork(a))
 
-  def doTask[R, A](a: Task[A])(implicit m: Member[Task, R]): Eff[R, A] =
+  def doTask[R, A](a: Task[A])(implicit m: Task |= R): Eff[R, A] =
     send(a)
 }
 

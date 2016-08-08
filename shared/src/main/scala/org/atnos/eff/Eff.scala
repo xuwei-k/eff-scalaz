@@ -2,8 +2,7 @@ package org.atnos.eff
 
 import scalaz._
 import scala.annotation.tailrec
-import Union._
-import Effects._
+import \/._
 import Eff._
 
 /**
@@ -46,6 +45,7 @@ sealed trait Eff[R, A] {
 
   def flatten[B](implicit ev: A =:= Eff[R, B]): Eff[R, B] =
     EffMonad[R].bind(this)(a => a)
+
 }
 
 case class Pure[R, A](value: A) extends Eff[R, A]
@@ -113,11 +113,11 @@ object EffImplicits extends EffImplicits
 
 trait EffCreation {
   /** create an Eff[R, A] value from an effectful value of type T[V] provided that T is one of the effects of R */
-  def send[T[_], R, V](tv: T[V])(implicit member: Member[T, R]): Eff[R, V] =
+  def send[T[_], R, V](tv: T[V])(implicit member: T |= R): Eff[R, V] =
     impure(member.inject(tv), Arrs.unit)
 
   /** use the internal effect as one of the stack effects */
-  def collapse[R, M[_], A](r: Eff[R, M[A]])(implicit m: Member[M, R]): Eff[R, A] =
+  def collapse[R, M[_], A](r: Eff[R, M[A]])(implicit m: M |= R): Eff[R, A] =
     EffMonad[R].bind(r)(mx => send(mx)(m))
 
   /** create an Eff value for () */
@@ -154,7 +154,7 @@ trait EffInterpretation {
    * This runner can only return the value in Pure because it doesn't
    * known how to interpret the effects in Impure
    */
-  def run[A](eff: Eff[NoEffect, A]): A =
+  def run[A](eff: Eff[NoFx, A]): A =
     eff match {
       case Pure(a) => a
       case other   => sys.error("impossible: cannot run the effects in "+other)
@@ -163,124 +163,43 @@ trait EffInterpretation {
   /**
    * peel-off the only present effect
    */
-  def detach[M[_] : Monad, A](eff: Eff[M |: NoEffect, A]): M[A] = {
-    def go(eff: Eff[M |: NoEffect, A]): M[A] = {
-      eff match {
+  def detach[M[_] : Monad, A](eff: Eff[Fx1[M], A]): M[A] = {
+    def go(e: Eff[Fx1[M], A]): M[A] = {
+      e match {
         case Pure(a) => Monad[M].point(a)
 
-        case Impure(UnionNow(mx), continuation) =>
-          Monad[M].bind(mx)(x => go(continuation(x)))
+        case Impure(u, continuation) =>
+          u match {
+            case Union1(ta) => Monad[M].bind(ta)(x => go(continuation(x)))
+          }
 
-        case _ =>
-          sys.error("impossible")
+        case ImpureAp(u, continuation) =>
+          u match {
+            case Union1(ta) => Monad[M].bind(ta)(x => go(continuation(x)))
+          }
       }
     }
     go(eff)
   }
 
   /**
+   * get the pure value if there is no effect
+   */
+  def runPure[R, A](eff: Eff[R, A]): Option[A] =
+    eff match {
+      case Pure(a) => Option(a)
+      case _ => None
+    }
+
+  /**
    * An Eff[R, A] value can be transformed into an Eff[U, A]
    * value provided that all the effects in R are also in U
    */
-  def effInto[R, U, A](e: Eff[R, A])(implicit f: IntoPoly[R, U, A]): Eff[U, A] =
+  def effInto[R, U, A](e: Eff[R, A])(implicit f: IntoPoly[R, U]): Eff[U, A] =
     f(e)
 }
 
 object EffInterpretation extends EffInterpretation
-
-/**
- * Trait for polymorphic recursion into Eff[?, A]
- *
- * The idea is to deal with one effect at the time:
- *
- *  - if the effect stack is M |: R and if U contains M
- *    we transform each "Union[R, X]" in the Impure case into a Union for U
- *    and we try to recurse on other effects present in R
- *
- *  - if the effect stack is M |: NoEffect and if U contains M we
- *    just "inject" the M[X] effect into Eff[U, A] using the Member typeclass
- *    if M is not present when we decompose we throw an exception. This case
- *    should never happen because if there is no other effect in the stack
- *    there should be at least something producing a value of type A
- *
- */
-trait IntoPoly[R, U, A] {
-  def apply(e: Eff[R, A]): Eff[U, A]
-}
-
-object IntoPoly extends IntoPolyLower {
-
-  implicit def intoNoEff[M[_], U, A](implicit m: Member[M, M |: NoEffect], mu: Member[M, U]): IntoPoly[M |: NoEffect, U, A] =
-    new IntoPoly[M |: NoEffect, U, A] {
-      def apply(e: Eff[M |: NoEffect, A]): Eff[U, A] = {
-
-        e match {
-          case Pure(a) =>
-            EffMonad[U].point(a)
-
-          case Impure(u, c) =>
-            decompose(u) match {
-              case \/-(mx) => impure[U, u.X, A](mu.inject(mx), Arrs.singleton(x => effInto(c(x))))
-              case -\/(u1) => sys.error("impossible")
-            }
-
-          case ap @ ImpureAp(u,c) =>
-            decompose(u) match {
-              case \/-(mx) =>
-                ImpureAp[U, u.X, A](mu.inject(mx), Apps[U, u.X, A](c.functions.map(f => effInto[M |: NoEffect, U, Any => Any](f))))
-              case -\/(u1) => sys.error("impossible")
-            }
-        }
-      }
-    }
-
-
-  implicit def intoOne[M[_], R, A]: IntoPoly[R, M |: R, A] =
-    new IntoPoly[R, M |: R, A] {
-      def apply(e: Eff[R, A]): Eff[M |: R, A] = {
-        e match {
-          case Pure(a) =>
-            EffMonad[M |: R].pure(a)
-
-          case Impure(u, c) =>
-            Impure[M |: R, u.X, A](UnionNext(u), Arrs.singleton(x => effInto[R, M |: R, A](c(x))))
-
-          case ap @ ImpureAp(u, c) =>
-            ImpureAp[M |: R, u.X, A](UnionNext(u),
-              Apps[M |: R, u.X, A](c.functions.map(f => effInto[R, M |: R, Any => Any](f))))
-        }
-      }
-    }
-  
-}
-trait IntoPolyLower {
-  implicit def intoEff[M[_], R, U, A](implicit m: Member[M, M |: R], mu: Member[M, U], recurse: IntoPoly[R, U, A]): IntoPoly[M |: R, U, A] =
-    new IntoPoly[M |: R, U, A] {
-      def apply(e: Eff[M |: R, A]): Eff[U, A] = {
-
-        e match {
-          case Pure(a) =>
-            EffMonad[U].point(a)
-
-          case Impure(u, c) =>
-            decompose(u) match {
-              case \/-(mx) => impure[U, u.X, A](mu.inject(mx), Arrs.singleton(x => effInto(c(x))))
-              case -\/(u1) => recurse(impure[R, u1.X, A](u1, c.asInstanceOf[Arrs[R, u1.X, A]]))
-            }
-
-          case ap @ ImpureAp(u, c) =>
-            decompose(u) match {
-              case \/-(mx) =>
-                ImpureAp[U, u.X, A](mu.inject(mx),
-                  Apps[U, u.X, A](c.functions.map(f => effInto[M |: R, U, Any => Any](f)(intoEff(m, mu, recurse.asInstanceOf[IntoPoly[R, U, Any => Any]])))))
-
-              case -\/(u1) =>
-                recurse(ImpureAp[R, u1.X, A](u1, c.asInstanceOf[Apps[R, u1.X, A]]))
-            }
-        }
-      }
-    }
-}
 
 /**
  * Sequence of monadic functions from A to B: A => Eff[B]
@@ -390,7 +309,6 @@ case class Apps[R, A, B](functions: Vector[Eff[R, Any => Any]]) {
 
     go(functions, Eff.EffMonad[R].point(a).asInstanceOf[Eff[R, Any]])
   }
-
 }
 
 object Apps {

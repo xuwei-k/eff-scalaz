@@ -3,8 +3,8 @@ package org.atnos.example
 import org.atnos.eff._
 import Eff._
 import Interpret._
-import scalaz.syntax.all._
 import scalaz._
+import Scalaz._
 
 object ConsoleEffect {
 
@@ -13,17 +13,17 @@ object ConsoleEffect {
 
   def log[R](message: String, doIt: Boolean = true)(implicit m: Member[Console, R]): Eff[R, Unit] =
     if (doIt) WriterEffect.tell(ConsoleString(message))
-    else      EffMonad.point(())
+    else      EffMonad.pure(())
 
   def logThrowable[R](t: Throwable, doIt: Boolean = true)(implicit m: Member[Console, R]): Eff[R, Unit] =
     if (doIt) logThrowable(t)
-    else      EffMonad.point(())
+    else      EffMonad.pure(())
 
   def logThrowable[R](t: Throwable)(implicit m: Member[Console, R]): Eff[R, Unit] =
     log(t.getMessage, doIt = true)(m) >>
     log(t.getStackTrace.mkString("\n"), doIt = true) >>
       (if (t.getCause != null) logThrowable(t.getCause)
-       else                    EffMonad.point(()))
+       else                    EffMonad.pure(()))
 
 
   /**

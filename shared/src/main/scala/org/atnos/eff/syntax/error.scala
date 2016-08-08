@@ -2,9 +2,10 @@ package org.atnos.eff
 package syntax
 
 import Member.<=
-import scalaz._
-import scala.reflect.ClassTag
 import ErrorEffect._
+import scalaz._
+import \/._
+import scala.reflect.ClassTag
 
 object error extends error
 

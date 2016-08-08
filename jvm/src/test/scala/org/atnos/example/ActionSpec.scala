@@ -2,6 +2,7 @@ package org.atnos
 package example
 
 import ActionCreation._
+import Action.runAction
 import org.atnos._
 import eff._
 import syntax.error._
@@ -10,7 +11,8 @@ import WarningsEffect._
 import ConsoleEffect._
 import ErrorEffect._
 import Member.{<=}
-import scalaz._, Scalaz._
+import scalaz._
+import Scalaz._
 import org.specs2._
 
 class ActionSpec extends Specification with ScalaCheck { def is = s2"""
@@ -42,6 +44,8 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
     runWith(2, 3)._2 must be_==(Vector("the sum is big: 5"))
 
   def warningAndFail = {
+    import ActionImplicits._
+
     val action = for {
        i <- EvalEffect.delay[ActionStack, Int](1)
        _ <- Action.warnAndFail[ActionStack, String]("hmm", "let's stop")
@@ -51,6 +55,7 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
   }
 
   def orElseWarn = {
+    import ActionImplicits._
     val action =
       ErrorEffect.fail[ActionStack, Unit]("failed").orElse(warn[ActionStack]("that didn't work"))
 
@@ -65,8 +70,10 @@ class ActionSpec extends Specification with ScalaCheck { def is = s2"""
     runAction(actions(i, j), printer)
 
   /** specifying the stack is enough to run it */
-  def runWithUnbound(i: Int, j: Int, printer: String => Unit = s => ()): (Error \/ Int, List[String]) =
+  def runWithUnbound(i: Int, j: Int, printer: String => Unit = s => ()): (Error \/ Int, List[String]) = {
+    import ActionImplicits._
     runAction(unboundActions[ActionStack](i, j), printer)
+  }
 
   /**
    * ActionStack actions

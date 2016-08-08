@@ -5,6 +5,7 @@ import ErrorEffect.{ok => OK, ErrorOrOk}
 
 import scala.collection.mutable.ListBuffer
 import scalaz._
+import Scalaz._
 import org.atnos.eff.all._
 import org.atnos.eff.syntax.all._
 
@@ -25,7 +26,7 @@ class ErrorEffectSpec extends Specification { def is = s2"""
  An action with a given failure type can be translated to an action with another failure type $local
 """
 
-  type R = ErrorOrOk |: NoEffect
+  type R = Fx.fx1[ErrorOrOk]
 
   def andFinallyOk = {
 
@@ -87,7 +88,7 @@ class ErrorEffectSpec extends Specification { def is = s2"""
 
     type WriterString[A] = Writer[String, A]
 
-    type E = ErrorOrOk |: WriterString |: Eval |: NoEffect
+    type E = Fx.fx3[ErrorOrOk, WriterString, Eval]
 
     val action: Eff[E, Int] = for {
       _ <- tell[E, String]("start")
@@ -117,22 +118,24 @@ class ErrorEffectSpec extends Specification { def is = s2"""
     case class Error1(m: String)
     object ErrorEffect1 extends ErrorEffect[Error1]
 
+    type ErrorOrOk1[A] = ErrorEffect1.ErrorOrOk[A]
+
     case class Error2(e1: Error1)
     object ErrorEffect2 extends ErrorEffect[Error2]
 
-    type R1 = ErrorEffect1.ErrorOrOk |: NoEffect
-    implicit val m1: Member.Aux[ErrorEffect1.ErrorOrOk, R1, NoEffect] = Member.first
+    type ErrorOrOk2[A] = ErrorEffect2.ErrorOrOk[A]
 
-    type R2 = ErrorEffect2.ErrorOrOk |: NoEffect
-    implicit val m2: Member.Aux[ErrorEffect2.ErrorOrOk, R2, NoEffect] = Member.first
-
-    val action1: Eff[R1, Unit] =
+    def action1[E](implicit m: ErrorOrOk1 |= E): Eff[E, Unit] =
       ErrorEffect1.fail(Error1("boom"))
 
-    val action2: Eff[R2, Unit] =
-      ErrorEffect.localError(action1, Error2)
+    def action2[E](implicit e: ErrorOrOk2 |= E): Eff[E, Unit] = {
+      // add the error1 effect locally and run it right away into error2
+      type R1 = Fx.prepend[ErrorOrOk1, E]
+      implicit val m: Member.Aux[ErrorOrOk1, R1, E] = Member.MemberAppendAnyL[ErrorOrOk1, E]
+      ErrorEffect.runLocalError(action1[R1], Error2)
+    }
 
-    ErrorEffect2.runError(action2).run ==== \/.left(\/.right(Error2(Error1("boom"))))
+    ErrorEffect2.runError(action2[Fx.fx1[ErrorOrOk2]]).run ==== \/.left(\/.right(Error2(Error1("boom"))))
   }
 
   /**

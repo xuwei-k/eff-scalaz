@@ -4,56 +4,59 @@ object ApplicativeEvaluation extends UserGuidePage { def is = "Applicative".titl
 
 The default interpretation of `Eff` values is "monadic" meaning that effectful values are being evaluated in order. This
   becomes clear when traversing a list of values with the `FutureEffect`:${snippet{
-import org.atnos.eff._, all._
-import org.atnos.eff.syntax.eval._
-import org.atnos.eff.syntax.future._
-import org.atnos.eff.syntax.writer._
-import org.atnos.eff.syntax.eff._
-import scalaz._, Scalaz._
+import org.atnos.eff._, all._, syntax.all._
+import scalaz._
+import Scalaz._
 import scala.concurrent._, duration._, ExecutionContext.Implicits.global
 
-type Future_[X] = Member[Future, X]
-type Eval_[X] = Member[Eval, X]
-type Writer_[X] = Member[Writer[String, ?], X]
-type S = Eval |: Future |: Writer[String, ?] |: NoEffect
+type WriterString[A] = Writer[String, A]
+type _writerString[R] = WriterString |= R
 
-def execute[E : Eval_ : Writer_ : Future_](i: Int): Eff[E, Int] =
+type S = Fx.fx3[Eval, Future, WriterString]
+
+def execute[E :_eval :_writerString :_future](i: Int): Eff[E, Int] =
   for {
     i1 <- delay(i)
     i2 <- async(i1)
     _  <- tell(i2.toString)
   } yield i2
 
-val action: Eff[S, List[Int]] = List(1000, 500, 50).traverse(execute[S])
+val action: Eff[S, List[Int]] =
+  List(1000, 500, 50).traverse(execute[S])
+
 action.runEval.awaitFuture(2.seconds).runWriterLog.run
 
 }.eval}
 
 
 We can however run all those computations concurrently using the applicative execution for `Eff`:${snippet{
-import org.atnos.eff._, all._
-import org.atnos.eff.syntax.eval._
-import org.atnos.eff.syntax.future._
-import org.atnos.eff.syntax.writer._
-import org.atnos.eff.syntax.eff._
+ // 8<--
+import org.atnos.eff._, all._, syntax.all._
 import scalaz._, Scalaz._
 import scala.concurrent._, duration._, ExecutionContext.Implicits.global
 
-type Future_[X] = Member[Future, X]
-type Eval_[X] = Member[Eval, X]
-type Writer_[X] = Member[Writer[String, ?], X]
-type S = Eval |: Future |: Writer[String, ?] |: NoEffect
+type WriterString[A] = Writer[String, A]
+type _writerString[R] = WriterString |= R
 
-def execute[E: Eval_ : Writer_ : Future_](i: Int): Eff[E, Int] =
+type S = Fx.fx3[Eval, Future, WriterString]
+
+def execute[E :_eval :_writerString :_future](i: Int): Eff[E, Int] =
   for {
     i1 <- delay(i)
     i2 <- async(i1)
     _ <- tell(i2.toString)
   } yield i2
+// 8<--
 
-val action: Eff[S, List[Int]] = List(1000, 500, 50).traverseA(execute[S])
+val action: Eff[S, List[Int]] =
+  List(1000, 500, 50).traverseA(execute[S])
+
 action.runEval.awaitFuture(2.seconds).runWriterLog.run
 }.eval}
+
+This uses now `traverseA` (instead of `traverse`) to do an applicative traversal and execute futures concurrently and
+the fastest actions finish first.
+
 """
 }
 

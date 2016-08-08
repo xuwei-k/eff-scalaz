@@ -23,36 +23,36 @@ case class Wrong[E](e: E) extends Validate[E, Unit]
 trait ValidateCreation {
 
   /** create an Validate effect from a single Option value */
-  def validateOption[R, E, A](option: Option[A], e: E)(implicit m: Member[Validate[E, ?], R]): Eff[R, Unit] =
+  def validateOption[R, E, A](option: Option[A], e: E)(implicit m: Validate[E, ?] |= R): Eff[R, Unit] =
     option.map(_ => correct(())).getOrElse(wrong(e))
 
   /** create an Validate effect from a single \/ value */
-  def validateDisjunction[R, E, A](disjunction: E \/ A)(implicit m: Member[Validate[E, ?], R]): Eff[R, Unit] =
+  def validateDisjunction[R, E, A](disjunction: E \/ A)(implicit m: Validate[E, ?] |= R): Eff[R, Unit] =
     disjunction.fold(e => wrong(e), _ => correct(()))
 
   /** create a failed value */
-  def wrong[R, E](e: E)(implicit m: Member[Validate[E, ?], R]): Eff[R, Unit] =
+  def wrong[R, E](e: E)(implicit m: Validate[E, ?] |= R): Eff[R, Unit] =
     send[Validate[E, ?], R, Unit](Wrong(e))
 
   /** create a correct value */
-  def correct[R, E, A](a: A)(implicit m: Member[Validate[E, ?], R]): Eff[R, A] =
-    send[Validate[E, ?], R, Unit](Correct[E]()) >> Eff.EffMonad[R].pure(a)
+  def correct[R, E, A](a: A)(implicit m: Validate[E, ?] |= R): Eff[R, A] =
+    send[Validate[E, ?], R, Unit](Correct[E]()) >> Eff.EffMonad[R].point(a)
 
   /** check a correct condition */
-  def validateCheck[R, E](condition: Boolean, e: E)(implicit m: Member[Validate[E, ?], R]): Eff[R, Unit] =
+  def validateCheck[R, E](condition: Boolean, e: E)(implicit m: Validate[E, ?] |= R): Eff[R, Unit] =
     if (condition) correct(()) else wrong(e)
 
   /** check a correct value */
-  def validateValue[R, E, A](condition: Boolean, a: A, e: E)(implicit m: Member[Validate[E, ?], R]): Eff[R, A] =
-    if (condition) correct(a) else (wrong(e) >> Eff.EffMonad[R].pure(a))
+  def validateValue[R, E, A](condition: Boolean, a: A, e: E)(implicit m: Validate[E, ?] |= R): Eff[R, A] =
+    if (condition) correct(a) else wrong(e) >> Eff.EffMonad[R].point(a)
 }
 
 object ValidateCreation extends ValidateCreation
 
 trait ValidateInterpretation extends ValidateCreation {
 
-  /** run the validate effect, yielding a ValidatedNel */
-  def runValidateNel[R, U, E, A](r: Eff[R, A])(implicit m: Member.Aux[Validate[E, ?], R, U]): Eff[U, ValidationNel[E, A]] =
+  /** run the validate effect, yielding a ValidationNel */
+  def runValidationNel[R, U, E, A](r: Eff[R, A])(implicit m: Member.Aux[Validate[E, ?], R, U]): Eff[U, ValidationNel[E, A]] =
     runNel(r).map(result => Validation.fromEither(result.toEither))
 
   /** run the validate effect, yielding a non-empty list of failures \/ A */
@@ -78,6 +78,21 @@ trait ValidateInterpretation extends ValidateCreation {
     interpretState1[R, U, Validate[E, ?], A, L \/ A]((a: A) => \/.right[L, A](a))(recurse)(r)
   }
 
+  /** catch and handle possible wrong values */
+  def catchWrong[R, E, A](r: Eff[R, A])(handle: E => Eff[R, A])(implicit member: (Validate[E, ?]) <= R): Eff[R, A] = {
+    val loop = new StatelessLoop[Validate[E,?], R, A, Eff[R, A]] {
+      def onPure(a: A): Eff[R, A] \/ Eff[R, A] =
+        \/-(pure(a))
+
+      def onEffect[X](m: Validate[E, X], continuation: Arrs[R, X, A]): Eff[R, A] \/ Eff[R, A] =
+        m match {
+          case Correct() => -\/(continuation(()))
+          case Wrong(e) => -\/(handle(e))
+        }
+    }
+
+    interceptStatelessLoop[R, Validate[E,?], A, A]((a: A) => pure(a), loop)(r)
+  }
 }
 
 object ValidateInterpretation extends ValidateInterpretation

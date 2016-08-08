@@ -12,7 +12,7 @@ New effects can be added to the library pretty easily. Let's create an Effect fo
 
 We need:
 
- - a base type. We select `Future[A]` (instead of `Future[A]` in order to avoid values to be evaluated straight away)
+ - a base type. We select `Future[() => A]` (instead of `Future[A]` in order to avoid values to be evaluated straight away)
 
  - a method to send values of type `A` into `Eff[R, A]`
 
@@ -27,7 +27,7 @@ In the code above:
  - `runFuture` runs the `Future` by using the `Interpret.interpret1` method
 
 Writing interpreters can be a bit tricky, especially to keep them stack-safe. There is no method at the moment for writing
-generic stack-safe interpreters but the `Interpret` objects offers several support traits and functions to write some of
+generic stack-safe interpreters but the `org.atnos.eff.interpret` object offers several support traits and functions to write some of
 them. In this case, the interpretation doesn't need to pass state around so we can use the `Recurse` trait. This kind of
 implementation is shared by many different monads, like `Reader`, `Eval`, `Option` but not `Writer`, `State` or `List` for
 example.
@@ -40,16 +40,16 @@ The `runFuture` method needs an implicit `Member.Aux[Fut, R, U]`. This must be r
 
 Then we can use this effect in a computation:${snippet{
 
-type F = Fut |: NoEffect
-
-val action: Eff[F, Int] = for {
-  a <- fut(2)
-  b <- fut(3)
-} yield a + b
+val action: Eff[Fx.fx1[Fut], Int] =
+  for {
+    a <- fut(2)
+    b <- fut(3)
+  } yield a + b
 
 run(runFuture(3.seconds)(action))
 }.eval}
 
+----
 """
 
 

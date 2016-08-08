@@ -2,6 +2,7 @@ package org.atnos.eff
 
 import scala.util.control.NonFatal
 import scalaz._
+import \/._
 import Eff._
 import Interpret._
 
@@ -20,15 +21,16 @@ object EvalEffect extends EvalEffect
 trait EvalTypes {
   type Eval[A] = scalaz.Name[A]
   type _Eval[R] = Eval <= R
+  type _eval[R] = Eval |= R
 }
 
 object EvalTypes extends EvalTypes
 
 trait EvalCreation extends EvalTypes {
-  def now[R :_Eval, A](a: A): Eff[R, A] =
+  def now[R :_eval, A](a: A): Eff[R, A] =
     pure(a)
 
-  def delay[R :_Eval, A](a: => A): Eff[R, A] =
+  def delay[R :_eval, A](a: => A): Eff[R, A] =
     send(Name(a))
 }
 

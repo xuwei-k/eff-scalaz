@@ -1,7 +1,7 @@
 package org.atnos.site
 
 import scalaz._
-import org.specs2.execute.Snippets
+import org.specs2.execute._
 
 object OutOfTheBox extends UserGuidePage { def is = "Out of the box".title ^ s2"""
 
@@ -33,9 +33,9 @@ This effect is a very simple one. It allows the delayed execution of computation
 
 Two methods are available to execute this effect:
 
- - `runEval[R, A](r: Eff[Eval |: R, A]): Eff[R, A]` to just execute the computations
+ - `runEval: Eff[U, A]` to just execute the computations
 
- - `attemptEval[R, A](r: Eff[Eval |: R, A]): Eff[R, Throwable \/ A]` to execute the computations but also catch any `Throwable` that would be thrown
+ - `attemptEval: Eff[U, Throwable \/ A]` to execute the computations but also catch any `Throwable` that would be thrown
 
 ${snippet{
 import org.atnos.eff._, all._, syntax.all._
@@ -52,7 +52,7 @@ import org.atnos.eff._, all._, syntax.all._
 /**
  * Stack declaration
  */
-type S = Option |: NoEffect
+type S = Fx.fx1[Option]
 
 // compute with this stack
 val map: Map[String, Int] =
@@ -76,7 +76,7 @@ import scalaz._
 /**
  * Stack declaration
  */
-type S = (String \/ ?) |: NoEffect
+type S = Fx.fx1[String \/ ?]
 
 // compute with this stack
 val map: Map[String, Int] =
@@ -100,7 +100,7 @@ import org.atnos.eff._, all._, syntax.all._
 import scalaz._
 // 8<--
 case class TooBig(value: Int)
-type E = (TooBig \/ ?) |: NoEffect
+type E = Fx.fx1[TooBig \/ ?]
 
 val i = 7
 
@@ -113,21 +113,21 @@ val action: Eff[E, Int] = catchLeft[E, TooBig, Int](value) { case TooBig(k) =>
   else        left[E, TooBig, Int](TooBig(k))
 }
 
-action.runDisjunction.run ==== \/.right(7)
+action.runDisjunction.run ==== \/-(7)
 }}
 
 *Note*: the type annotations on `left` and `right` can be avoided by adding an implicit declaration in scope. You can learn
-more about this in the ${"Implicits" ~/ Implicits} section.
+more about this in the ${"Implicits" ~/ MemberImplicits} section.
 
 ### Validate
 
-The `Validate` effect is similar to the `Disjunction` effect but let you accumulate failures: ${snippet{
+The `Validate` effect is similar to the `\/` effect but let you accumulate failures: ${snippet{
 import org.atnos.eff._, all._, syntax.all._
 
 /**
  * Stack declaration
  */
-type S = Validate[String, ?] |: NoEffect
+type S = Fx.fx1[Validate[String, ?]]
 
 def checkPositiveInt(i: Int): Eff[S, Unit] =
   validateCheck(i >= 0, s"$i is not positive")
@@ -181,13 +181,13 @@ case class Conf(host: String, port: Int)
 type R1[A] = Reader[Int, A]
 type R2[A] = Reader[Conf, A]
 
-type S = R1 |: NoEffect
+type S = Fx.fx2[R1, R2]
 
-val getPort: Eff[S, String] = for {
-  p1 <- ask[S, Int]
+def getPort[R](implicit r: Reader[Int, ?] |= R): Eff[R, String] = for {
+  p1 <- ask[R, Int]
 } yield "the port is " + p1
 
-getPort.localReader((_: Conf).port).runReader(Conf("prod", 80)).run
+getPort[S].localReader((_: Conf).port).runReader(Conf("prod", 80)).run
 }.eval}
 
 ### Writer
@@ -210,12 +210,12 @@ You can then define your own custom `Fold` to log the values to a file:${snippet
 import org.atnos.eff._, all._, syntax.all._
 import java.io.PrintWriter
 
-type S = Writer[String, ?] |: NoEffect
+type S = Fx.fx1[Writer[String, ?]]
 
 val action: Eff[S, Int] = for {
- a <- EffMonad[S].point(1)
+ a <- pure[S, Int](1)
  _ <- tell("first value "+a)
- b <- EffMonad[S].point(2)
+ b <- pure[S, Int](2)
  _ <- tell("second value "+b)
 
 } yield a + b
@@ -245,14 +245,13 @@ A `State` effect can be seen as the combination of both a `Reader` and a `Writer
  - `put` set a new state
 
 Let's see an example showing that we can also use tags to track different states at the same time:${snippet{
+import org.atnos.eff._, all._, syntax.all._
 import scalaz._
-import org.atnos.eff._, all._
-import org.atnos.eff.syntax.all._
 
 type S1[A] = State[Int, A]
 type S2[A] = State[String, A]
 
-type S = S1 |: S2 |: NoEffect
+type S = Fx.fx2[S1, S2]
 
 val swapVariables: Eff[S, String] = for {
   v1 <- get[S, Int]
@@ -274,12 +273,12 @@ effect acting on a "bigger" state:${snippet{
 import org.atnos.eff._, all._, syntax.all._
 
 type Count[A] = State[Int, A]
-type Sum[A] = State[Int, A]
-type Mean[A] = State[(Int, Int), A]
+type Sum[A]   = State[Int, A]
+type Mean[A]  = State[(Int, Int), A]
 
-type S1 = Count |: NoEffect
-type S2 = Sum |: NoEffect
-type S = Mean |: NoEffect
+type S1 = Fx.fx1[Count]
+type S2 = Fx.fx1[Sum]
+type S  = Fx.fx1[Mean]
 
 def count(list: List[Int]): Eff[S1, String] = for {
   _ <- put(list.size)
@@ -303,8 +302,8 @@ mean(List(1, 2, 3)).runState((0, 0)).run
 ### List
 
 The `List` effect is used for computations which may return several values.
- A simple example using this effect would be:${ListSnippets.snippet1}
-
+ A simple example using this effect would be:
+${ListSnippets.snippet1}
 
 ### Choose
 
@@ -316,7 +315,8 @@ The `Choose` effect is used for non-deterministic computations. With the `Choose
 `Choose` is actually a generalization of `List` where instead of "exploring" all the branches we might "cut" some of them.
 That behaviour is controlled by the `Alternative[F]` instance you use when running `Choose`.
 
-For example if we take `List` to run a similar example as before, we get the list of all the accepted pairs:${ChooseSnippets.snippet1}
+For example if we take `List` to run a similar example as before, we get the list of all the accepted pairs:
+${ChooseSnippets.snippet1}
 
 ### Future
 
@@ -342,43 +342,44 @@ Now you can learn how to  ${"create your own effects" ~/ CreateEffects}.
 }
 
 object ListSnippets extends Snippets {
-  val snippet1 = snippet{
+  val snippet1 = snippet {
 import org.atnos.eff._, all._, syntax.all._
 
-type S = List |: NoEffect
+type S = Fx.fx1[List]
 
 // create all the possible pairs for a given list
 // where the sum is greater than a value
-def pairsBiggerThan(list: List[Int], n: Int): Eff[S, (Int, Int)] = for {
+def pairsBiggerThan[R :_list](list: List[Int], n: Int): Eff[R, (Int, Int)] = for {
   a <- values(list:_*)
   b <- values(list:_*)
   found <- if (a + b > n) singleton((a, b))
            else           empty
 } yield found
 
-pairsBiggerThan(List(1, 2, 3, 4), 5).runList.run
+pairsBiggerThan[S](List(1, 2, 3, 4), 5).runList.run
 }.eval
 
 }
 
 object ChooseSnippets extends Snippets {
-val snippet1 = snippet{
+
+  val snippet1 = snippet{
 import org.atnos.eff._, all._, syntax.all._
 
-type S = Choose |: NoEffect
+type S = Fx.fx1[Choose]
 
 // create all the possible pairs for a given list
 // where the sum is greater than a value
-def pairsBiggerThan(list: List[Int], n: Int): Eff[S, (Int, Int)] = for {
+def pairsBiggerThan[R :_choose](list: List[Int], n: Int): Eff[R, (Int, Int)] = for {
   a <- chooseFrom(list)
   b <- chooseFrom(list)
-  found <- if (a + b > n) EffMonad[S].point((a, b))
+  found <- if (a + b > n) EffMonad[R].pure((a, b))
            else           zero
 } yield found
 
 import scalaz.std.list._
 
-pairsBiggerThan(List(1, 2, 3, 4), 5).runChoose.run
+pairsBiggerThan[S](List(1, 2, 3, 4), 5).runChoose.run
 }.eval
 
 }

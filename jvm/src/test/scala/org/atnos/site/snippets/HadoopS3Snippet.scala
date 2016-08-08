@@ -17,29 +17,16 @@ object HadoopStack {
 
   type HadoopReader[A] = Reader[HadoopConf, A]
   type WriterString[A] = Writer[String, A]
-  type Hadoop = HadoopReader |: WriterString |: Eval |: NoEffect
-
-  object Hadoop {
-    implicit val HadoopReaderMember: Member.Aux[HadoopReader, Hadoop, WriterString |: Eval |: NoEffect] =
-      Member.first
-
-    implicit val WriterStringMember: Member.Aux[WriterString, Hadoop, HadoopReader |: Eval |: NoEffect] =
-      Member.successor
-
-    implicit val EvalMember: Member.Aux[Eval, Hadoop, HadoopReader |: WriterString |: NoEffect] =
-      Member.successor
-  }
-
-  import Hadoop._
+  type Hadoop = Fx.fx3[HadoopReader, WriterString, Eval]
 
   def readFile(path: String): Eff[Hadoop, String] =
     for {
       c <- ask[Hadoop, HadoopConf]
-      _ <- tell("Reading from "+path)
+      _ <- tell[Hadoop, String]("Reading from "+path)
     } yield c.mappers.toString
 
-  def runHadoopReader[R, A](conf: HadoopConf): Eff[HadoopReader |: R, A] => Eff[R, A] =
-    (e: Eff[HadoopReader |: R, A]) => ReaderEffect.runReader(conf)(e)
+  def runHadoopReader[R, U, A](conf: HadoopConf)(e: Eff[R, A])(implicit r: Member.Aux[HadoopReader, R, U]): Eff[U, A] =
+    ReaderEffect.runReader(conf)(e)
 
 }
 
@@ -50,52 +37,22 @@ object S3Stack {
   type S3Reader[A] = Reader[S3Conf, A]
   type WriterString[A] = Writer[String, A]
 
-  type S3 = S3Reader |: WriterString |: Eval |: NoEffect
-
-  object S3 {
-    implicit val S3ReaderMember: Member.Aux[S3Reader, S3, WriterString |: Eval |: NoEffect] =
-      Member.first
-
-    implicit val WriterStringMember: Member.Aux[WriterString, S3, S3Reader |: Eval |: NoEffect] =
-      Member.successor
-
-    implicit val EvalMember: Member.Aux[Eval, S3, S3Reader |: WriterString |: NoEffect] =
-      Member.successor
-  }
-
-  import S3._
-
+  type S3 = Fx.fx3[S3Reader, WriterString, Eval]
 
   def writeFile(key: String, content: String): Eff[S3, Unit] =
     for {
       c <- ask[S3, S3Conf]
-      _ <- tell("Writing to bucket "+c.bucket+": "+content)
+      _ <- tell[S3, String]("Writing to bucket "+c.bucket+": "+content)
     } yield ()
 
-  def runS3Reader[R, A](conf: S3Conf): Eff[S3Reader |: R, A] => Eff[R, A] =
-    (e: Eff[S3Reader |: R, A]) => ReaderEffect.runReader(conf)(e)
+  def runS3Reader[R, U, A](conf: S3Conf)(e: Eff[R, A])(implicit r: Member.Aux[S3Reader, R, U]): Eff[U, A] =
+    ReaderEffect.runReader(conf)(e)
 }
 
 // 8<---
 
-  type HadoopS3 = S3Reader |: HadoopReader |: WriterString |: Eval |: NoEffect
-
-  object HadoopS3 {
-    implicit val S3ReaderMember: Member.Aux[S3Reader, HadoopS3, HadoopReader |: WriterString |: Eval |: NoEffect] =
-      Member.first
-
-    implicit val HadoopReaderMember: Member.Aux[HadoopReader, HadoopS3, S3Reader |: WriterString |: Eval |: NoEffect] =
-      Member.successor
-
-    implicit val WriterStringMember: Member.Aux[WriterString, HadoopS3, S3Reader |: HadoopReader |: Eval |: NoEffect] =
-      Member.successor
-
-    implicit val EvalMember: Member.Aux[Eval, HadoopS3, S3Reader |: HadoopReader |: WriterString |: NoEffect] =
-      Member.successor
-
-  }
+  type HadoopS3 = Fx.fx4[S3Reader, HadoopReader, WriterString, Eval]
 
 }
 
 object HadoopS3Snippet extends HadoopS3Snippet
-

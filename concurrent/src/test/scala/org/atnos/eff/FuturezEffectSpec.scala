@@ -16,13 +16,11 @@ class FuturezEffectSpec extends Specification { def is = s2"""
 """
 
   def e1 = {
-    type S = Future |: Option |: NoEffect
-    implicit val f: Member.Aux[Future, S, Option |: NoEffect] = Member.first
-    implicit val o: Member.Aux[Option, S, Future |: NoEffect] = Member.successor
+    type S = Fx.fx2[Future, Option]
 
     val action: Eff[S, Int] = for {
-      a <- delayed(10)
-      b <- option.some(a)
+      a <- delayed[S, Int](10)
+      b <- option.some[S, Int](a)
     } yield a + b
 
     action.runOption.attemptFuture(1.second).run ==== \/.right(Some(20))

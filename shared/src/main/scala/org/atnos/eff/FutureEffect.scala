@@ -1,12 +1,14 @@
 package org.atnos.eff
 
 import scala.util.control.NonFatal
-import scalaz._, scalaz._
+import scalaz._, Scalaz._
+import \/._
 import Eff._
 import Interpret._
-
+import EvalTypes._
 import scala.concurrent._
 import duration._
+import DisjunctionCreation._
 
 /**
  * Effect for Future computations
@@ -18,13 +20,22 @@ trait FutureEffect extends
 object FutureEffect extends FutureEffect
 
 trait FutureCreation {
-  type _Future[R] = Future <= R
 
-  def sync[R :_Future, A](a: A): Eff[R, A] =
+  type _Future[R] = Future <= R
+  type _future[R] = Future |= R
+
+  def sync[R :_future, A](a: A): Eff[R, A] =
     pure(a)
 
-  def async[R :_Future, A](a: =>A)(implicit ec: ExecutionContext): Eff[R, A] =
+  def async[R :_future, A](a: =>A)(implicit ec: ExecutionContext): Eff[R, A] =
     send(Future(a))
+
+  def liftFuture[R :_future :_eval, A](f: =>Future[A]): Eff[R, A] =
+    EvalEffect.delay(f).flatMap(v => Eff.send[Future, R, A](v))
+
+  def attemptFuture[R :_future :_eval :_throwableOr, A](f: =>Future[A])(implicit ec: ExecutionContext): Eff[R, A] =
+    liftFuture(f.attempt).flatMap(send(_))
+
 }
 
 trait FutureInterpretation {

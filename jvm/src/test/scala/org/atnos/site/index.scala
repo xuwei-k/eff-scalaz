@@ -1,19 +1,18 @@
 import org.atnos.site._
 
-class index extends UserGuidePage { def is = "eff-scalaz".title ^ s2"""
+object index extends UserGuidePage { def is = "eff-scalaz".title ^ s2"""
 
 Extensible effects are an alternative to monad transformers for computing with effects in a functional way.
-This library is based on the "free-er" monad and an "open union" of effects described in
+This library is based on the "free-er" monad and an "open union" of effects described by
 Oleg Kiselyov in [Freer monads, more extensible effects](http://okmij.org/ftp/Haskell/extensible/more.pdf).
 
 You can learn more in the following sections:
 
  - ${"your first effects" ~ Introduction}
  - ${"standard effects in eff-scalaz" ~ OutOfTheBox}: `Reader`, `Writer`, `Eval`, `State`,...
- - use an ${"open or a closed union of effects" ~ OpenClosed}
  - ${"create your own effects" ~/ CreateEffects}
- - ${"use Member implicits" ~/ Implicits }
- - ${"manipulate effect stacks" ~ TransformStack}
+ - ${"interpret and manipulate effect stacks" ~ TransformStack}
+ - ${"use Member implicits" ~/ MemberImplicits }
  - ${"use an applicative evaluation" ~ ApplicativeEvaluation}
 
 ### Contributing

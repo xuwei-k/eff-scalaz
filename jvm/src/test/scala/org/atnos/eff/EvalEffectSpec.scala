@@ -4,7 +4,8 @@ import org.specs2.Specification
 import org.atnos.eff.all._
 import org.atnos.eff.syntax.all._
 
-import scalaz._, Scalaz._
+import scalaz._
+import Scalaz._
 
 class EvalEffectSpec extends Specification { def is = s2"""
 
@@ -12,7 +13,7 @@ class EvalEffectSpec extends Specification { def is = s2"""
 
 """
 
-  type E = Eval |: NoEffect
+  type E = Fx.fx1[Eval]
 
   val list = (1 to 5000).toList
 

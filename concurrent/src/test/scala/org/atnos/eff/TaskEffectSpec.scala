@@ -17,13 +17,11 @@ class TaskEffectSpec extends Specification { def is = s2"""
 """
 
   def e1 = {
-    type S = Task |: Option |: NoEffect
-    implicit val f: Member.Aux[Task, S, Option |: NoEffect] = Member.first
-    implicit val o: Member.Aux[Option, S, Task |: NoEffect] = Member.successor
+    type S = Fx.fx2[Task, Option]
 
     val action: Eff[S, Int] = for {
-      a <- doLater(10)
-      b <- option.some(a)
+      a <- doLater[S, Int](10)
+      b <- option.some[S, Int](a)
     } yield a + b
 
     action.runOption.attemptTask(1.second).run ==== \/.right(Some(20))
