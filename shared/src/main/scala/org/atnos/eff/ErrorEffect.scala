@@ -25,13 +25,11 @@ trait ErrorTypes[F] {
   /** type of errors: exceptions or failure messages */
   type Error = Throwable \/ F
 
-
   /**
    * base type for this effect: either an error or a computation to evaluate
    * a "by-name" value
    */
-  type ErrorOrOkE[E, A] = (Throwable \/ E) \/ Eval[A]
-  type ErrorOrOk[A] = ErrorOrOkE[F, A]
+  type ErrorOrOk[A] = Evaluate[F, A]
 
   type _ErrorOrOk[R] = ErrorOrOk <= R
   type _errorOrOk[R] = ErrorOrOk |= R
@@ -40,15 +38,15 @@ trait ErrorTypes[F] {
 trait ErrorCreation[F] extends ErrorTypes[F] {
   /** create an Eff value from a computation */
   def ok[R :_errorOrOk, A](a: => A): Eff[R, A] =
-    send[ErrorOrOk, R, A](\/-(Name(a)))
+    send[ErrorOrOk, R, A](Evaluate.ok[F, A](a))
 
   /** create an Eff value from a computation */
   def eval[R :_errorOrOk , A](a: Eval[A]): Eff[R, A] =
-    send[ErrorOrOk, R, A](\/-(a))
+    send[ErrorOrOk, R, A](Evaluate.eval[F, A](a))
 
   /** create an Eff value from an error */
   def error[R :_errorOrOk, A](error: Error): Eff[R, A] =
-    send[ErrorOrOk, R, A](-\/(error))
+    send[ErrorOrOk, R, A](Evaluate.error[F, A](error))
 
   /** create an Eff value from a failure */
   def fail[R :_errorOrOk, A](failure: F): Eff[R, A] =
@@ -69,7 +67,7 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] { outer =>
   def runError[R, U, A](r: Eff[R, A])(implicit m: Member.Aux[ErrorOrOk, R, U]): Eff[U, Error \/ A] = {
     val recurse = new Recurse[ErrorOrOk, U, Error \/ A] {
       def apply[X](m: ErrorOrOk[X]) =
-        m match {
+        m.run match {
           case -\/(e) =>
             \/-(EffMonad[U].point(-\/(e)))
 
@@ -90,7 +88,7 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] { outer =>
   def andFinally[R, A](action: Eff[R, A], last: Eff[R, Unit])(implicit m: ErrorOrOk <= R): Eff[R, A] = {
     val recurse = new Recurse[ErrorOrOk, R, A] {
       def apply[X](current: ErrorOrOk[X]): X \/ Eff[R, A] =
-        current match {
+        current.run match {
           case -\/(e) => \/-(last.flatMap(_ => outer.error[R, A](e)))
           case \/-(x) =>
             try -\/(x.value)
@@ -116,7 +114,7 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] { outer =>
   def catchError[R, A, B](action: Eff[R, A], pure: A => B, onError: Error => Eff[R, B])(implicit m: ErrorOrOk <= R): Eff[R, B] = {
     val recurse = new Recurse[ErrorOrOk, R, B] {
       def apply[X](current: ErrorOrOk[X]): X \/ Eff[R, B] =
-        current match {
+        current.run match {
           case -\/(e) => \/-(onError(e))
           case \/-(x) =>
             try -\/[X](x.value)
@@ -152,29 +150,29 @@ trait ErrorInterpretation[F] extends ErrorCreation[F] { outer =>
    * Lift a computation over a "small" error (for a subsystem) into
    * a computation over a "bigger" error (for the full application)
    */
-  def localError[SR, BR, U, E1, E2, A](r: Eff[SR, A], getter: E1 => E2)
-                                     (implicit sr: Member.Aux[({type l[X]=(Throwable \/ E1) \/ Eval[X]})#l, SR, U],
-                                               br: Member.Aux[({type l[X]=(Throwable \/ E2) \/ Eval[X]})#l, BR, U]): Eff[BR, A] =
-    transform[SR, BR, U, ({type l[X]=(Throwable \/ E1) \/ Eval[X]})#l, ({type l[X]=(Throwable \/ E2) \/ Eval[X]})#l, A](r,
-      new ~>[({type l[X]=(Throwable \/ E1) \/ Eval[X]})#l, ({type l[X]=(Throwable \/ E2) \/ Eval[X]})#l] {
-      def apply[X](r: (Throwable \/ E1) \/ Eval[X]): (Throwable \/ E2) \/ Eval[X] =
-        r.leftMap(_.map(getter))
+  def localError[SR, BR, U, F1, F2, A](r: Eff[SR, A], getter: F1 => F2)
+                                      (implicit sr: Member.Aux[Evaluate[F1, ?], SR, U],
+                                       br: Member.Aux[Evaluate[F2, ?], BR, U]): Eff[BR, A] =
+  transform[SR, BR, U, Evaluate[F1, ?], Evaluate[F2, ?], A](r,
+    new ~>[Evaluate[F1, ?], Evaluate[F2, ?]] {
+      def apply[X](r: Evaluate[F1, X]): Evaluate[F2, X] =
+        Evaluate(r.run.leftMap(_.map(getter)))
     })
 
   /**
-    * Translate an error effect to another one in the same stack
-    * a computation over a "bigger" error (for the full application)
-    */
-  def runLocalError[R, U, E1, E2, A](r: Eff[R, A], getter: E1 => E2)
-                                  (implicit sr: Member.Aux[ErrorOrOkE[E1, ?], R, U], br: ErrorOrOkE[E2, ?] |= U): Eff[U, A] =
-    translate[R, U, ErrorOrOkE[E1, ?], A](r) { new Translate[ErrorOrOkE[E1, ?], U] {
-      def apply[X](ex: ErrorOrOkE[E1, X]): Eff[U, X] =
-        ex match {
-          case -\/(-\/(t))  => send[ErrorOrOkE[E2, ?], U, X](-\/(-\/(t)))
-          case -\/(\/-(e1)) => send[ErrorOrOkE[E2, ?], U, X](-\/(\/-(getter(e1))))
-          case \/-(x)       => send[ErrorOrOkE[E2, ?], U, X](\/-(x))
-        }
-    }}
+   * Translate an error effect to another one in the same stack
+   * a computation over a "bigger" error (for the full application)
+   */
+  def runLocalError[R, U, F1, F2, A](r: Eff[R, A], getter: F1 => F2)
+                                    (implicit sr: Member.Aux[Evaluate[F1, ?], R, U], br: Evaluate[F2, ?] |= U): Eff[U, A] =
+  translate[R, U, Evaluate[F1, ?], A](r) { new Translate[Evaluate[F1, ?], U] {
+    def apply[X](ex: Evaluate[F1, X]): Eff[U, X] =
+      ex.run match {
+        case -\/(-\/(t))  => send[Evaluate[F2, ?], U, X](Evaluate.exception[F2, X](t))
+        case -\/(\/-(e1)) => send[Evaluate[F2, ?], U, X](Evaluate.fail[F2, X](getter(e1)))
+        case \/-(x)       => send[Evaluate[F2, ?], U, X](Evaluate.eval[F2, X](x))
+      }
+  }}
 
 }
 
@@ -206,3 +204,14 @@ object ErrorEffect extends ErrorEffect[String] {
   def traceWithIndent(t: Throwable, indent: String): String =
     trace(t).lines.map(line => indent + line).mkString("\n")
 }
+
+case class Evaluate[F, A](run: (Throwable \/ F) \/ Name[A])
+
+object Evaluate {
+  def ok[F, A](a: =>A)               = Evaluate[F, A](\/-(Name(a)))
+  def eval[F, A](a: Eval[A])         = Evaluate[F, A](\/-(a))
+  def error[F, A](a: Throwable \/ F) = Evaluate[F, A](-\/(a))
+  def fail[F, A](f: F)               = error[F, A](\/-(f))
+  def exception[F, A](t: Throwable)  = error[F, A](-\/(t))
+}
+
