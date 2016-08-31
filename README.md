@@ -23,7 +23,7 @@ You can also check out [this presentation](http://bit.ly/eff_flatmap_2016) at fl
 
 You add `eff-scalaz` as an sbt dependency:
 ```scala
-libraryDependencies += "org.atnos" %% "eff-scalaz" % "1.7.1"
+libraryDependencies += "org.atnos" %% "eff-scalaz" % "2.0.0"
 
 // to write types like Reader[String, ?]
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.8.0")
@@ -34,7 +34,7 @@ addCompilerPlugin("com.milessabin" % "si2712fix-plugin_2.11.8" % "1.2.0")
 
 If you want to use the `scalaz.concurrent.Future` or `scalaz.concurrent.Task` effects:
 ```scala
-libraryDependencies += "org.atnos" %% "eff-scalaz-concurrent" % "1.7.1"
+libraryDependencies += "org.atnos" %% "eff-scalaz-concurrent" % "2.0.0"
 ```
 
 # Contributing

@@ -1,6 +1,8 @@
 package org.atnos.eff
 
 import org.specs2.Specification
+import scalaz._, Scalaz._
+import org.atnos.eff.syntax.all._
 
 class MemberImplicitsSpec extends Specification { def is = s2"""
 
@@ -232,5 +234,68 @@ class MemberImplicitsSpec extends Specification { def is = s2"""
   option1[SD3].runN.runN.runN
   option2[SD3].runN.runN.runN
   option3[SD3].runN.runN.runN
-*/
+
+  // PERMUTATIONS OF 4 effects
+\
+  type StateString[A] = State[String, A]
+  type ReaderString[A] = Reader[String, A]
+  type ValidateString[A] = Validate[String, A]
+
+  type C = Fx.fx4[ReaderString, StateString, Choose, ValidateString]
+
+  type Check[A] = Eff[C,A]
+
+  val value : Check[Int] = Eff.pure(3)
+
+  val c1 = value.runChoose.runReader("foo").runState("baz").runNel.run
+  val c2 = value.runChoose.runReader("foo").runNel.runState("baz").run
+  val c3 = value.runChoose.runState("foo").runReader("baz").runNel.run
+  val c4 = value.runChoose.runState("foo").runNel.runReader("baz").run
+  val c5 = value.runChoose.runNel.runState("foo").runReader("baz").run
+  val c6 = value.runChoose.runNel.runReader("baz").runState("foo").run
+
+  val r1 = value.runReader("foo").runChoose.runState("baz").runNel.run
+  val r2 = value.runReader("foo").runChoose.runNel.runState("baz").run
+  val r3 = value.runReader("foo").runState("foo").runChoose.runNel.run
+  val r4 = value.runReader("foo").runState("foo").runNel.runChoose.run
+  val r5 = value.runReader("foo").runNel.runState("foo").runChoose.run
+  val r6 = value.runReader("foo").runNel.runChoose.runState("foo").run
+
+  val s1 = value.runState("baz").runChoose.runReader("foo").runNel.run
+  val s2 = value.runState("baz").runChoose.runNel.runReader("foo").run
+  val s3 = value.runState("baz").runReader("foo").runChoose.runNel.run
+  val s4 = value.runState("baz").runReader("foo").runNel.runChoose.run
+  val s5 = value.runState("baz").runNel.runReader("foo").runChoose.run
+  val s6 = value.runState("baz").runNel.runChoose.runReader("foo").run
+
+  val n1 = value.runNel.runChoose.runReader("foo").runState("baz").run
+  val n2 = value.runNel.runChoose.runState("baz").runReader("foo").run
+  val n3 = value.runNel.runReader("foo").runChoose.runState("baz").run
+  val n4 = value.runNel.runReader("foo").runState("baz").runChoose.run
+  val n5 = value.runNel.runState("baz").runReader("foo").runChoose.run
+  val n6 = value.runNel.runState("baz").runChoose.runReader("foo").run
+
+  */
+
+  // APPEND to an arbitrary stack
+
+  def action[R]: Eff[R, Int] =
+    ???
+
+  def actionS1[S] = action[Fx.append[Fx3[Option, Throwable \/ ?, Reader[String, ?]], S]].runOption.runDisjunction.runReader("foo")
+  def actionS2[S] = action[Fx.append[Fx3[Option, Throwable \/ ?, Reader[String, ?]], S]].runOption.runReader("foo").runDisjunction
+  def actionS3[S] = action[Fx.append[Fx3[Option, Throwable \/ ?, Reader[String, ?]], S]].runDisjunction.runReader("foo").runOption
+  def actionS4[S] = action[Fx.append[Fx3[Option, Throwable \/ ?, Reader[String, ?]], S]].runDisjunction.runOption.runReader("foo")
+  def actionS5[S] = action[Fx.append[Fx3[Option, Throwable \/ ?, Reader[String, ?]], S]].runReader("foo").runDisjunction.runOption
+  def actionS6[S] = action[Fx.append[Fx3[Option, Throwable \/ ?, Reader[String, ?]], S]].runReader("foo").runOption.runDisjunction
+
+  type SAppend[S] = Fx.append[Fx.fx4[Option, Throwable \/ ?, Reader[String, ?], State[Int, ?]], S]
+  def actionA1[S] = action[SAppend[S]].runState(1).runOption.runDisjunction.runReader("foo")
+  def actionA2[S] = action[SAppend[S]].runState(1).runOption.runReader("foo").runDisjunction
+  def actionA3[S] = action[SAppend[S]].runState(1).runDisjunction.runReader("foo").runOption
+  def actionA4[S] = action[SAppend[S]].runState(1).runDisjunction.runOption.runReader("foo")
+  def actionA5[S] = action[SAppend[S]].runState(1).runReader("foo").runDisjunction.runOption
+  def actionA6[S] = action[SAppend[S]].runState(1).runReader("foo").runOption.runDisjunction
+  def actionA7    = action[SAppend[NoFx]].runState(1).runReader("foo").runOption.runDisjunction
+  
 }

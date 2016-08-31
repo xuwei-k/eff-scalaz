@@ -12,6 +12,9 @@ class ReaderEffectSpec extends Specification { def is = s2"""
 
  localReader can be used to transform a "small" reader effect into a "bigger" one $localReaderEffect
 
+ modifyReader can be used to transform a "small" reader effect into a "bigger" one
+   and stay in the same stack $modifyReaderEffect
+
 """
 
   def localEffect = {
@@ -50,6 +53,31 @@ class ReaderEffectSpec extends Specification { def is = s2"""
     } yield s1 + " " + s2
 
     action.runReader(Config(10, "www.me.com")).runOption.run ==== Some("hello world")
+  }
+
+  def modifyReaderEffect = {
+    type ReaderEnv[A] = Reader[Env, A]
+    type Comp = Fx.fx2[ReaderEnv, Option]
+    type Env = Map[String, Int]
+
+    val env: Env = Map()
+
+    def lookup(x: String): Eff[Comp, Int] = for {
+      e <- ask[Comp, Env]
+      v <- OptionEffect.fromOption[Comp, Int](e.get(x))
+    } yield v
+
+    def runLocal[A](f: Env => Env, c: Eff[Comp, A]): Eff[Comp, A] =
+      c.modifyReader(f)
+
+    // the lookup should work on the modified environment
+    // but this should not change subsequent calls to the environment
+    def program: Eff[Comp, String] = for {
+      v <- lookup("x").modifyReader((_:Env).updated("x", 2))
+      e <- ask[Comp, Env]
+    } yield s"Value: $v, env: $e"
+
+    program.runReader(env).runOption.run ==== Option(s"Value: 2, env: Map()")
   }
 
   case class Config(factor: Int, host: String)
