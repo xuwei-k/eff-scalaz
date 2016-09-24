@@ -2,7 +2,6 @@ import com.typesafe.sbt.pgp.PgpKeys.publishSigned
 import com.typesafe.sbt.SbtSite.SiteKeys._
 import com.typesafe.sbt.SbtGhPages.GhPagesKeys._
 import ReleaseTransformations._
-import ScoverageSbtPlugin._
 import com.ambiata.promulgate.project.ProjectPlugin.promulgate
 
 lazy val eff = project.in(file("."))
@@ -27,13 +26,6 @@ lazy val concurrentJVM = project.in(file("concurrent"))
   .settings(commonJvmSettings)
   .dependsOn(coreJVM)
 
-lazy val scoverageSettings = Seq(
-  ScoverageKeys.coverageMinimum := 60,
-  ScoverageKeys.coverageFailOnMinimum := false,
-  ScoverageKeys.coverageHighlighting := scalaBinaryVersion.value != "2.10",
-  ScoverageKeys.coverageExcludedPackages := "org\\.atnos\\.eff\\.bench\\..*"
-)
-
 lazy val buildSettings = Seq(
   organization := "org.atnos",
   scalaVersion := "2.11.8",
@@ -47,8 +39,7 @@ lazy val commonSettings = Seq(
   ),
   libraryDependencies ++= depend.scalaz,
   scalacOptions in (Compile, doc) := (scalacOptions in (Compile, doc)).value.filter(_ != "-Xfatal-warnings"),
-  addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.8.0"),
-  addCompilerPlugin("com.milessabin" % "si2712fix-plugin_2.11.8" % "1.2.0")
+  addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.0")
 ) ++ warnUnusedImport ++ prompt
 
 lazy val tagName = Def.setting{
@@ -74,7 +65,7 @@ lazy val commonJvmSettings = Seq(
   libraryDependencies ++= depend.specs2
 )
 
-lazy val effSettings = buildSettings ++ commonSettings ++ publishSettings ++ scoverageSettings
+lazy val effSettings = buildSettings ++ commonSettings ++ publishSettings
 
 lazy val publishSettings =
   promulgate.library("org.atnos.eff", "atnos") ++ Seq(
@@ -102,6 +93,7 @@ lazy val noPublishSettings = Seq(
 )
 
 lazy val commonScalacOptions = Seq(
+  "-Xexperimental",
   "-deprecation",
   "-encoding", "UTF-8",
   "-feature",
@@ -109,7 +101,6 @@ lazy val commonScalacOptions = Seq(
   "-unchecked",
   "-Xfatal-warnings",
   "-Xlint",
-  "-Yinline-warnings",
   "-Yno-adapted-args",
   "-Ywarn-dead-code",
   "-Ywarn-numeric-widen",
