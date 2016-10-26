@@ -11,10 +11,10 @@ You can learn more in the User Guide:
 
  - [your first effects](http://atnos-org.github.io/eff-scalaz/org.atnos.site.Introduction.html)
  - [included effects: `Reader`, `Writer`, `Eval`, `State`,...](http://atnos-org.github.io/eff-scalaz/org.atnos.site.OutOfTheBox.html)
- - [using an open or a closed union of effects](http://atnos-org.github.io/eff-scalaz/org.atnos.site.OpenClosed.html)
  - [create your own effects](http://atnos-org.github.io/eff-scalaz/org.atnos.site.CreateEffects.html)
  - [use Member implicits](http://atnos-org.github.io/eff-scalaz/org.atnos.site.MemberImplicits.html)
  - [working with different effect stacks](http://atnos-org.github.io/eff-scalaz/org.atnos.site.TransformStack.html)
+ - [a tutorial similar to the cats' tutorial for Free monads](http://atnos-org.github.io/eff-scalaz/org.atnos.site.Tutorial.html)
 
 You can also check out [this presentation](http://bit.ly/eff_flatmap_2016) at flatMap Oslo 2016 ([slides](http://www.slideshare.net/etorreborre/the-eff-monad-one-monad-to-rule-them-all)).
 
