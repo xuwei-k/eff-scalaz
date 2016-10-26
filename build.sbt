@@ -4,6 +4,7 @@ import com.typesafe.sbt.SbtGhPages.GhPagesKeys._
 import ReleaseTransformations._
 import ScoverageSbtPlugin._
 import com.ambiata.promulgate.project.ProjectPlugin.promulgate
+import sbtrelease._
 
 lazy val eff = project.in(file("."))
   .settings(moduleName := "root")
@@ -131,7 +132,17 @@ lazy val sharedPublishSettings = Seq(
     else
       Some("Releases" at nexus + "service/local/staging/deploy/maven2")
   }
-)
+)  ++ site.settings ++
+  ghpages.settings ++
+  userGuideSettings
+
+lazy val userGuideSettings =
+  Seq(
+    GhPagesKeys.ghpagesNoJekyll := false,
+    SiteKeys.siteSourceDirectory in SiteKeys.makeSite := target.value / "specs2-reports" / "site",
+    includeFilter in SiteKeys.makeSite := "*.html" | "*.css" | "*.png" | "*.jpg" | "*.gif" | "*.js",
+    git.remoteRepo := "git@github.com:atnos-org/eff-scalaz.git"
+  )
 
 lazy val sharedReleaseProcess = Seq(
   releaseProcess := Seq[ReleaseStep](
