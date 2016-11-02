@@ -4,8 +4,8 @@ import org.scalajs.sbtplugin.ScalaJSPlugin.autoImport._
 
 object depend {
 
-  val scalazVersion   = "7.2.2"
-  val specs2Version   = "3.7.3"
+  val scalazVersion   = "7.2.7"
+  val specs2Version   = "3.8.6"
 
   val scalaz =
     Seq("org.scalaz" %%%! "scalaz-core" % scalazVersion) ++
